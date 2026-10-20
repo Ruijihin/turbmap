@@ -6,6 +6,7 @@ VWS(鉛直シアー)だけでなく、山岳波・慣性不安定・変形場・
 
 - 範囲:北緯22.4〜46度、東経120〜147度(石垣島・台湾・朝鮮半島を含み、北海道より北・東は含まない)
 - 高度:FL120〜FL410(1000ft刻み。モデルの層のあいだは補間)
+- 表示:2D地図、3D(回転・拡大できるボリューム表示)、地図上の点を結んだ線に沿った鉛直断面
 - 更新:MSMの発表ごと(1日8回)。過去60日分を保存
 - 費用:GitHub(公開リポジトリ)と Cloudflare の無料枠の中で動く
 
@@ -45,7 +46,8 @@ PNGは画像ではなく、数値(指数×100、0〜255)の入れ物として使
 | `batch/scripts/make_coast.py` | 表示範囲を変えたときに海岸線を作り直す |
 | `.github/workflows/build.yml` | GitHub Actions の定義 |
 | `worker/` | Cloudflare Worker(画面とデータの配信、定期起動) |
-| `web/` | 地図の画面(`index.html`、`config.js`、`coast.json`) |
+| `web/` | 地図の画面(`index.html`、3D表示 `view3d.js`、`config.js`、`coast.json`) |
+| `web/vendor/` | 3D表示に使う three.js(MIT、ライセンスは `three.LICENSE`) |
 | `gas/Code.gs` | 揺れの報告を集める Google Apps Script(任意) |
 | `docs/` | ドキュメント |
 
