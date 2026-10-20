@@ -1,0 +1,52 @@
+name: build
+
+# 起動のしかた
+#  - Cloudflare Worker から30分ごとに workflow_dispatch(init=auto)
+#  - 予備として GitHub の定期実行(Worker が止まっていても1日数回は動く)
+#  - 手動で初期時刻を指定して実行(Actions 画面の「Run workflow」)
+on:
+  workflow_dispatch:
+    inputs:
+      init:
+        description: "auto または初期時刻 YYYYMMDDHH(UTC)"
+        required: false
+        default: auto
+  schedule:
+    - cron: "40 */3 * * *"
+
+# 同時に2つ動かさない(後から来た方は待つ)
+concurrency:
+  group: turbmap-build
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ vars.R2_BUCKET || 'turbmap-data' }}
+      RETENTION_DAYS: ${{ vars.RETENTION_DAYS || '60' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: batch/requirements.txt
+
+      - name: 依存パッケージ
+        run: pip install -r batch/requirements.txt
+
+      - name: 京大サーバーの証明書を補う
+        run: bash batch/scripts/rish_ca.sh
+
+      - name: 計算してR2に保存
+        working-directory: batch
+        run: python -m turbmap.main --r2 --init "${{ github.event.inputs.init || 'auto' }}"

@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+# ローカルで試すときの出力・入力データ
+out/
+web/data/
+*.nc
+# Cloudflare
+worker/node_modules/
+worker/.wrangler/
+.dev.vars

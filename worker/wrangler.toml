@@ -1,0 +1,26 @@
+# 揺れやすさ地図の Cloudflare Worker 設定
+# 使い方は docs/setup.md を参照。
+name = "turbmap"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+# 画面(web/ フォルダ)を静的アセットとして配信する
+[assets]
+directory = "../web"
+binding = "ASSETS"
+
+# 地図データを置く R2 バケット
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "turbmap-data"
+
+# 30分ごとに GitHub Actions を起動する(新しい初期値が無ければバッチはすぐ終わる)
+[triggers]
+crons = ["*/30 * * * *"]
+
+[vars]
+GH_OWNER = "Ruijihin"   # GitHubのアカウント名
+GH_REPO = "turbmap"             # ← リポジトリ名
+GH_WORKFLOW = "build.yml"
+GH_REF = "main"
+# GH_TOKEN は秘密情報なので、ここには書かずに `npx wrangler secret put GH_TOKEN` で登録する

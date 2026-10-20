@@ -1,0 +1,5 @@
+numpy>=1.26,<3
+scipy>=1.11
+pillow>=10.0
+requests>=2.31
+boto3>=1.34
