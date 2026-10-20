@@ -55,7 +55,7 @@ GitHub の Variable `RETENTION_DAYS` を設定します。次の実行から、�
 R2 の無料枠(10GB)を超えないよう、1日あたり約57MBで計算してください(170日程度が上限)。
 
 ### 総合の係数や色の区切りを変える
-`web/index.html` の `total()` と `CAT` を書き換えて、`npx wrangler deploy` します。
+`web/index.html` の `totalCore()`(係数と高度係数)と `CAT`(色の区切り)を書き換えて、`npx wrangler deploy` します。
 総合の計算はブラウザで行うので、バッチの再計算は要りません。
 
 ### 「並」の目安や計算方法を変える
@@ -63,8 +63,9 @@ R2 の無料枠(10GB)を超えないよう、1日あたり約57MBで計算して
 過去分と比べるときは、変えた日をメモしておいてください(meta.json にも目安の値が記録されます)。
 
 ### 表示範囲を変える
-`diag.py` の `DOMAIN` を変え、`batch/scripts/make_coast.py` で `web/coast.json` を作り直します
-(MSMの地上ファイルが1つ必要です)。画面の範囲ボタンは `web/index.html` の `VIEWS` です。
+`diag.py` の `DOMAIN` を変え、`batch/scripts/make_coast.py` で `web/coast.json` を、
+`batch/scripts/make_terrain.py` で `web/terrain.png` を作り直します(MSMの地上ファイルが1つ必要です)。
+`terrain.png` の格子がデータと合わないときは、山岳波と重力波の区別をせず、すべて地形性として扱います。画面の範囲ボタンは `web/index.html` の `VIEWS` です。
 MSMの範囲(北緯22.4〜47.6度、東経120〜150度)より外には広げられません。
 
 ### 手元で1回分を計算する

@@ -44,9 +44,10 @@ PNGは画像ではなく、数値(指数×100、0〜255)の入れ物として使
 | `batch/scripts/rish_ca.sh` | 京大サーバーの証明書の不備を補う |
 | `batch/certs/` | 補うための中間証明書とルート証明書(公開情報) |
 | `batch/scripts/make_coast.py` | 表示範囲を変えたときに海岸線を作り直す |
+| `batch/scripts/make_terrain.py` | 地形の影響圏(`web/terrain.png`)を作る。表示範囲を変えたときに作り直す |
 | `.github/workflows/build.yml` | GitHub Actions の定義 |
 | `worker/` | Cloudflare Worker(画面とデータの配信、定期起動) |
-| `web/` | 地図の画面(`index.html`、3D表示 `view3d.js`、`config.js`、`coast.json`) |
+| `web/` | 地図の画面(`index.html`、3D表示 `view3d.js`、`config.js`、`coast.json`、地形の影響圏 `terrain.png`) |
 | `web/vendor/` | 3D表示に使う three.js(MIT、ライセンスは `three.LICENSE`) |
 | `gas/Code.gs` | 揺れの報告を集める Google Apps Script(任意) |
 | `docs/` | ドキュメント |
