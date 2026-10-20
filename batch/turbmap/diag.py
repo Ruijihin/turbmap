@@ -27,6 +27,10 @@ THRESH = {
 
 # 表示範囲。MSM気圧面の範囲(北緯22.4〜47.6度、東経120〜150度)のうち、
 # 北海道より北・東を除いた部分。石垣島・台湾(南端を除く)・朝鮮半島が入る。
+# MSM気圧面の湿度は300hPaまでしか実データが無い(250hPa以上は全マスが一定値75%)。
+RH_MIN_P = 300
+RH_MISSING = 255   # 数値データ中の「データなし」の印(通常の値は0〜254)
+
 DOMAIN = {"lat_min": 22.4, "lat_max": 46.0, "lon_min": 120.0, "lon_max": 147.0}
 
 
@@ -130,7 +134,10 @@ def compute_run(path, ft_min=3):
             }
             for a_e, e in enumerate(ELEMS):
                 x = score[e][np.ix_(jj, ii)]
-                out[a_t, a_l, a_e] = np.clip(np.round(x * 100), 0, 255).astype(np.uint8)
+                out[a_t, a_l, a_e] = np.clip(np.round(x * 100), 0, 254).astype(np.uint8)
+            if min(pa, pb) < RH_MIN_P:
+                # MSMの湿度は300hPaより上では欠測(全マスが一定値)なので、氷相対湿度は「データなし」にする
+                out[a_t, a_l, ELEMS.index("rhi")] = RH_MISSING
 
     mids = [float(np.exp((np.log(a) + np.log(b)) / 2)) for a, b in LAYER_PAIRS]
     info = {
@@ -147,6 +154,9 @@ def compute_run(path, ft_min=3):
         "nx": int(len(ii)),
         "elems": ELEMS,
         "scale": 0.01,
+        "missing": RH_MISSING,
+        "rhi_valid_max_fl": round(isa_flight_level(RH_MIN_P), 1),   # これより上は氷相対湿度なし
+        "rhi_valid_layers": sum(1 for a, b in LAYER_PAIRS if min(a, b) >= RH_MIN_P),
         "thresholds": THRESH,
     }
     m.close()
