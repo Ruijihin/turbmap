@@ -37,7 +37,7 @@ button,select{font:inherit;color:var(--fg)}
 button:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 select{padding:6px 8px;border:1px solid var(--line);background:var(--surface);border-radius:6px;min-height:36px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;flex:none}
-.seg button{border:0;border-right:1px solid var(--line);background:var(--surface);padding:6px 12px;min-height:36px;cursor:pointer;white-space:nowrap}
+.seg button{border:0;border-right:1px solid var(--line);background:var(--surface);padding:6px 11px;min-height:36px;cursor:pointer;white-space:nowrap}
 .seg button:last-child{border-right:0}
 .seg button[aria-pressed="true"]{background:var(--accent);color:#fff;font-weight:700}
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:6px 12px;min-height:36px;cursor:pointer;white-space:nowrap}
@@ -76,7 +76,7 @@ select{padding:6px 8px;border:1px solid var(--line);background:var(--surface);bo
 .tchip.now{box-shadow:inset 0 -3px 0 var(--faint)}
 
 /* 地図と、その右の高度スライダー */
-.mapbody{display:grid;grid-template-columns:auto 76px;justify-content:center;gap:0;padding:10px 6px 6px 10px}
+.mapbody{display:grid;grid-template-columns:auto 76px;justify-content:center;gap:0;padding:8px 6px 4px 10px}
 .stage{position:relative;background:var(--sea);touch-action:none}
 .stage canvas{position:absolute;inset:0;width:100%;height:100%}
 .stage3{position:relative;background:var(--sea)}
@@ -91,25 +91,37 @@ select{padding:6px 8px;border:1px solid var(--line);background:var(--surface);bo
   font-family:var(--mono);font-size:.82rem;display:grid;place-items:center;box-shadow:0 1px 3px rgba(0,0,0,.25);pointer-events:none}
 .flslider .thumb::before{content:"";position:absolute;left:-5px;top:50%;margin-top:-5px;border:5px solid transparent;border-right-color:var(--accent);border-left:0}
 .flcap{grid-column:1/-1;width:0;min-width:100%;display:flex;justify-content:space-between;gap:10px;padding:4px 2px 0;font-size:.78rem;color:var(--muted)}
-.flcap .kind{width:16em;text-align:right;white-space:nowrap}
+.flcap .kind{width:18em;text-align:right;white-space:nowrap}
 
 /* 凡例と要素(2段固定) */
-.legend{display:flex;flex-direction:column;gap:6px;padding:8px 12px 10px;border-top:1px solid var(--line)}
-.lrow{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;min-height:30px}
+.legend{display:flex;flex-direction:column;gap:4px;padding:6px 12px 8px;border-top:1px solid var(--line)}
+.lrow{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;min-height:28px}
 .lab{font-size:.75rem;color:var(--muted);width:4.2em;flex:none}
 .cat{display:inline-flex;align-items:center;gap:4px;font-size:.8rem}
 .cat i{width:22px;height:10px;border-radius:2px;display:inline-block}
 .ramp{width:120px;height:10px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--muted))}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chipw{display:inline-flex;border:1px solid var(--line);border-radius:16px;overflow:hidden}
-.chip{border:0;background:var(--surface);padding:4px 10px 4px 8px;min-height:32px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:.82rem;white-space:nowrap}
-.chip i{width:12px;height:12px;border-radius:3px;background:var(--c);opacity:.25}
+.chip{border:0;background:var(--surface);padding:2px 8px 2px 7px;min-height:30px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:.82rem;white-space:nowrap}
+.chip i{flex:none;width:12px;height:12px;border-radius:3px;background:var(--c);opacity:.25}
 .chip[aria-pressed="true"]{font-weight:700}
 .chip[aria-pressed="true"] i{opacity:1}
 .only{border:0;border-left:1px solid var(--line);background:var(--soft);font-size:.72rem;color:var(--muted);padding:0 8px;cursor:pointer}
 .chips.off{opacity:.45}
 .presets{display:inline-flex;gap:4px}
-.presets button{border:1px solid var(--line);background:var(--soft);border-radius:6px;padding:3px 8px;min-height:32px;font-size:.78rem;cursor:pointer}
+.mapbody.side{grid-template-columns:auto 76px 262px}
+.mapbody.side .flcap{grid-column:1/3}
+.mapbody.side .legend{grid-column:3;grid-row:1/3;border-top:0;border-left:1px solid var(--line);margin-left:12px;padding:0 0 0 12px;align-self:start;gap:10px}
+.mapbody.side .lrow{flex-direction:column;align-items:stretch;gap:5px}
+.mapbody.side #legend{display:grid;grid-template-columns:1fr 1fr;gap:2px 8px}
+.mapbody.side #legend .muted{grid-column:1/-1}
+.mapbody.side .chips{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.mapbody.side .only{padding:0 5px;font-size:.68rem}
+.mapbody.side .chip{padding:2px 4px 2px 6px;font-size:.78rem;overflow:hidden}
+.mapbody.side .chipw{justify-content:space-between}
+.mapbody.side .chip{flex:1;justify-content:flex-start}
+.mapbody.side .presets{flex-wrap:wrap}
+.presets button{border:1px solid var(--line);background:var(--soft);border-radius:6px;padding:2px 7px;min-height:30px;font-size:.78rem;cursor:pointer}
 
 /* 3Dの設定 */
 .bar3{display:flex;flex-wrap:wrap;gap:8px 16px;padding:8px 12px;border-top:1px solid var(--line);font-size:.82rem;align-items:center}
@@ -193,8 +205,8 @@ details.doc ol,details.doc ul{margin:6px 0 0;padding-left:1.4em;display:flex;fle
         <button type="button" data-m="elem" aria-pressed="false">要素別</button>
       </div>
       <div class="seg" role="group" aria-label="総合に含める揺れ">
-        <button type="button" data-s="cloud" aria-pressed="true">CAT+揺れる雲</button>
-        <button type="button" data-s="cat" aria-pressed="false">CATだけ</button>
+        <button type="button" data-s="cloud" aria-pressed="true" title="晴天乱気流と揺れる雲">CAT+雲</button>
+        <button type="button" data-s="cat" aria-pressed="false" title="晴天乱気流だけ">CATのみ</button>
       </div>
       <div class="seg" role="group" aria-label="2Dと3D">
         <button type="button" data-d="2d" aria-pressed="true">2D</button>
@@ -203,7 +215,7 @@ details.doc ol,details.doc ul{margin:6px 0 0;padding-left:1.4em;display:flex;fle
       <select id="view" aria-label="表示範囲" style="width:auto"></select>
       <span class="sp"></span>
       <label class="tog"><input type="checkbox" id="apt" checked>空港</label>
-      <label class="tog" title="氷相対湿度95%以上。湿度のデータがあるFL300付近まで"><input type="checkbox" id="cloud">雲の可能性</label>
+      <label class="tog" title="雲の可能性(氷相対湿度95%以上)。湿度のデータがあるFL300付近まで"><input type="checkbox" id="cloud">雲</label>
       <label class="tog" id="pireprow" hidden><input type="checkbox" id="pirep" checked>揺れの報告</label>
     </div>
     <div class="mapbody" id="mapbody">
@@ -217,7 +229,7 @@ details.doc ol,details.doc ul{margin:6px 0 0;padding-left:1.4em;display:flex;fle
       <div class="flslider" id="flslider" tabindex="0" role="slider" aria-label="高度(フライトレベル)" aria-valuemin="120" aria-valuemax="410">
         <div class="track"></div><div id="flticks"></div><div class="thumb" id="flthumb">FL300</div>
       </div>
-      <div class="flcap"><span id="flhelp">↑↓キーまたはドラッグで高度を変更(1000ft刻み)</span><span class="kind" id="flkind">—</span></div>
+      <div class="flcap"><span id="flhelp">↑↓キー・ドラッグで高度</span><span class="kind" id="flkind">—</span></div>
     </div>
     <div class="bar3" id="bar3" hidden>
       <label>対象 <select id="target3" aria-label="3Dの対象"></select></label>
@@ -232,7 +244,7 @@ details.doc ol,details.doc ul{margin:6px 0 0;padding-left:1.4em;display:flex;fle
       <label>濃さ <input type="range" id="dens" min="0.3" max="3" step="0.1" value="1"><output id="densv">1.0</output></label>
       <span class="muted">ドラッグで回転・ホイール(2本指)で拡大・右ドラッグ(2本指)で移動</span>
     </div>
-    <div class="legend">
+    <div class="legend" id="legendbox">
       <div class="lrow"><span class="lab">凡例</span><span id="legend"></span></div>
       <div class="lrow"><span class="lab">要素</span>
         <span class="presets" role="group" aria-label="要素の一括選択">
@@ -338,6 +350,7 @@ var CAT=[{v:0.5,nm:'弱'},{v:0.8,nm:'並'},{v:1.2,nm:'並〜強'},{v:1.6,nm:'強
 var TL=[[255,224,138],[255,169,77],[232,89,12],[155,17,17]], TD=[[120,100,40],[220,140,50],[255,110,60],[255,70,90]];
 var WD=['日','月','火','水','木','金','土'];
 var FLMIN=120,FLMAX=410;
+var baseVH=window.innerHeight;   // 地図の大きさを決める画面の高さ(小さな変化では更新しない)
 var TZ=null,IDX=null,M=null,D=null,COAST=[],APTS=[],PIREPS=[];
 var cur={run:null,k:0,fl:300,view:'all',mode:'total',dim:'2d'},withCloud=true,target='total';
 var probe={active:false,pinned:false,lat:0,lon:0,fl:null,dist:null};
@@ -470,14 +483,29 @@ function gridIndex(lat,lon){var i=Math.round((lon-M.lon0)/M.dlon),j=Math.round((
 /* ===== 地図の配置 ===== */
 function view(){return VIEWS.filter(function(v){return v.k===cur.view;})[0]||VIEWS[0];}
 var P={};
+var SIDE_W=262;   // 凡例・要素を地図の右に置くときの幅
+function setSide(on){
+  var lg=$('legendbox'),body=$('mapbody');
+  if(on&&lg.parentNode!==body) body.appendChild(lg);
+  if(!on&&lg.parentNode===body) $('mapcard').insertBefore(lg,$('bar3').nextSibling);
+  body.classList.toggle('side',on);
+}
+function fitMap(ar,sideW){
+  // 地図カード全体(時刻〜要素の選択)が画面に収まる大きさ。地図以外の部分の高さは実際に測る
+  var body=$('mapbody'),card=$('mapcard'),cur3=cur.dim==='3d'?$('stage3'):stage;
+  var other=card.offsetHeight-(cur3.offsetHeight||0);
+  var top=card.getBoundingClientRect().top+window.scrollY;   // ヘッダーの分
+  var avail=body.clientWidth-16-76-6-sideW,maxh=Math.max(300,baseVH-top-12-other);
+  var w=Math.max(200,avail),h=w/ar;if(h>maxh){h=maxh;w=h*ar;}
+  return {w:Math.floor(w),h:Math.floor(h),spare:avail-w};
+}
+function applySize(s){[stage,$('stage3')].forEach(function(x){x.style.width=s.w+'px';x.style.height=s.h+'px';});$('flslider').style.height=s.h+'px';}
 function layout(){
   var b=view().b,mid=(b[2]+b[3])/2,ar=((b[1]-b[0])*Math.cos(mid*Math.PI/180))/(b[3]-b[2]);
-  var body=$('mapbody'),avail=body.clientWidth-16-76-6,maxh=Math.max(420,window.innerHeight-260);
-  var w=Math.max(200,avail),h=w/ar;if(h>maxh){h=maxh;w=h*ar;}
-  w=Math.floor(w);h=Math.floor(h);
-  [stage,$('stage3')].forEach(function(s){s.style.width=w+'px';s.style.height=h+'px';});
-  $('flslider').style.height=h+'px';
-  var dpr=Math.min(window.devicePixelRatio||1,2);
+  // 1回目は凡例を地図の下に置いて測る。地図の横に余裕があれば、凡例を右に移して測り直す(地図を縦に大きくできる)
+  setSide(false);var s=fitMap(ar,0);applySize(s);s=fitMap(ar,0);applySize(s);
+  if(s.spare>SIDE_W+20){setSide(true);var s2=fitMap(ar,SIDE_W+12);applySize(s2);s2=fitMap(ar,SIDE_W+12);if(s2.h>=s.h){s=s2;applySize(s);}else{setSide(false);applySize(s);}}
+  var w=s.w,h=s.h,dpr=Math.min(window.devicePixelRatio||1,2);
   [cv,ov,pv].forEach(function(c){c.width=Math.round(w*dpr);c.height=Math.round(h*dpr);});
   P={W:cv.width,H:cv.height,b:b,dpr:dpr,cw:w,ch:h};
   buildFlTicks();
@@ -535,7 +563,7 @@ function selectRun(init,k){
   return loadRun(init).then(function(m){cur.run=init;M=m;$('run').value=init;
     var j=jstp(m.init_iso);
     $('runinfo').textContent='MSM '+m.init_iso.replace('T',' ')+'(日本時間 '+j.mo+'/'+j.d+' '+pad(j.h,2)+'時)初期値 · 作成 '+m.generated.slice(5).replace('T',' ')+(m.elems.indexOf('cv')<0?' · 旧形式(揺れる雲なし)':'');
-    buildTimeChips();buildFlTicks();return selectTime(k==null?nearestNow(m):Math.min(k,m.valid.length-1));
+    buildTimeChips();layout();buildFlTicks();return selectTime(k==null?nearestNow(m):Math.min(k,m.valid.length-1));
   }).catch(fail);
 }
 var reqId=0;
@@ -553,7 +581,7 @@ function setMode(m){cur.mode=m;document.querySelectorAll('[data-m]').forEach(fun
 function setScope(s){withCloud=s==='cloud';document.querySelectorAll('[data-s]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.s===s?'true':'false');});saveUI();draw();}
 document.querySelectorAll('[data-m]').forEach(function(b){b.addEventListener('click',function(){setMode(b.dataset.m);});});
 document.querySelectorAll('[data-s]').forEach(function(b){b.addEventListener('click',function(){setScope(b.dataset.s);});});
-VIEWS.forEach(function(v){var o=document.createElement('option');o.value=v.k;o.textContent='範囲:'+v.nm;$('view').appendChild(o);});
+VIEWS.forEach(function(v){var o=document.createElement('option');o.value=v.k;o.textContent=v.nm;$('view').appendChild(o);});
 $('view').addEventListener('change',function(){cur.view=$('view').value;saveUI();layout();draw();});
 ['cloud','pirep'].forEach(function(id){$(id).addEventListener('change',function(){drawOverlay();});});
 $('apt').addEventListener('change',function(){saveUI();drawOverlay();});
@@ -561,8 +589,8 @@ $('apt').addEventListener('change',function(){saveUI();drawOverlay();});
 /* 凡例と要素のチップ */
 function paintLegend(){
   var dk=dark(),S=dk?TD:TL,h='';
-  if(cur.mode==='total') h=CAT.map(function(c,i){return '<span class="cat"><i style="background:'+rgb(S[i])+'"></i>'+c.nm+'('+c.v.toFixed(1)+')</span>';}).join(' ')+' <span class="muted" style="font-size:.78rem">総合ではすべての要素を使います(要素の選択は「要素別」で有効)</span>';
-  else h='<span class="cat">色の濃さ:弱(0.5)</span> <span class="ramp"></span> <span class="cat">強(1.6以上)</span> <span class="muted" style="font-size:.78rem">重なった場所は色が混ざります</span>';
+  if(cur.mode==='total') h=CAT.map(function(c,i){return '<span class="cat"><i style="background:'+rgb(S[i])+'"></i>'+c.nm+'('+c.v.toFixed(1)+')</span>';}).join(' ')+' <span class="muted" style="font-size:.75rem">総合は全要素を使用</span>';
+  else h='<span class="cat">色の濃さ:弱(0.5)</span> <span class="ramp"></span> <span class="cat">強(1.6以上)</span> <span class="muted" style="font-size:.75rem">重なると色が混ざる</span>';
   $('legend').innerHTML=h;
   $('chips').classList.toggle('off',cur.mode==='total');
   EL.forEach(function(e){e.chip.style.setProperty('--c',rgb(ecol(e)));e.chip.setAttribute('aria-pressed',e.on?'true':'false');});
@@ -947,7 +975,14 @@ document.addEventListener('keydown',function(ev){
   else if(ev.key==='Escape'){if(sec.on){sec.on=false;secUI();drawProbe();}else if(probe.pinned) unpin();}
 });
 var rsT=null;
-window.addEventListener('resize',function(){clearTimeout(rsT);rsT=setTimeout(function(){if(cur.dim==='3d'){secKey='';updateSec();return;}layout();secKey='';draw();},120);});
+// iPadのSafariは、スクロールでアドレスバーが出入りして画面の高さが少し変わる。そのたびに地図の大きさを変えないよう、
+// 幅が変わったとき(回転など)と、高さが大きく変わったときだけ作り直す
+var lastW=window.innerWidth;
+window.addEventListener('resize',function(){clearTimeout(rsT);rsT=setTimeout(function(){
+  var w=window.innerWidth,hgt=window.innerHeight;
+  if(w===lastW&&Math.abs(hgt-baseVH)<150) return;
+  lastW=w;baseVH=hgt;
+  if(cur.dim==='3d'){secKey='';updateSec();return;}layout();layout();secKey='';draw();},150);});
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',function(){paintLegend();secKey='';draw();});
 
 /* ===== 起動 ===== */
@@ -955,7 +990,7 @@ loadUI();
 $('view').value=cur.view;$('target').value=target;$('target3').value=target;
 document.querySelectorAll('[data-s]').forEach(function(b){b.setAttribute('aria-pressed',(b.dataset.s==='cloud')===withCloud?'true':'false');});
 document.querySelectorAll('[data-m]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.m===cur.mode?'true':'false');});
-paintLegend();secUI();layout();renderInfo();
+paintLegend();secUI();layout();layout();renderInfo();
 Promise.all([getJSON(CFG.dataBase+'index.json'),getJSON('coast.json'),
   getJSON('airports.json').then(function(a){APTS=a.airports.map(function(r){return {code:r[0],name:r[1],lat:r[2],lon:r[3]};});},function(){APTS=[];}),
   loadPng('terrain.png').then(function(t){var z=new Float32Array(t.length);for(var q=0;q<t.length;q++) z[q]=t[q]/255;TZ=z;},function(){TZ=null;})]).then(function(a){
