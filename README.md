@@ -51,6 +51,7 @@ PNGは画像ではなく、数値(指数×100、0〜255)の入れ物として使
 | `.github/workflows/build.yml` | GitHub Actions の定義 |
 | `worker/` | Cloudflare Worker(画面とデータの配信、定期起動) |
 | `web/` | 地図の画面(`index.html`、3D表示 `view3d.js`、`config.js`、`coast.json`、地形の影響圏 `terrain.png`、空港 `airports.json`) |
+| `web/guide.html` | 要素の読み方(シアー過多の層・流れの変形×シアー・強い高気圧性シアー)の解説ページ |
 | `web/vendor/` | 3D表示に使う three.js(MIT、ライセンスは `three.LICENSE`) |
 | `gas/Code.gs` | 揺れの報告を集める Google Apps Script(任意) |
 | `docs/` | ドキュメント |

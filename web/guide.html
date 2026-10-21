@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>晴天乱気流の要素の読み方</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: 読み物の1段組み。各要素は「ひとこと → 図 → 補足 → 天気図での見つけ方 → 数値の目安 → 数式(参考・折りたたみ)」の同じ順。 */
+:root{
+  --bg:#f3f4f6; --surface:#ffffff; --fg:#1b2330; --muted:#5b6674; --faint:#8a94a3; --line:#d5dae0; --soft:#eef2f6;
+  --accent:#b8470b; --ri:#1f8f82; --df:#d06a00; --ii:#c62f2f; --jet:#2a5db0; --warm:#d9542b; --cold:#2f6fd6;
+  --font:"BIZ UDPGothic","Hiragino Sans","Yu Gothic",Meiryo,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#11151b; --surface:#19202a; --fg:#e6e9ee; --muted:#9aa5b2; --faint:#6c7887; --line:#2d3745; --soft:#222a35;
+  --accent:#ff8a4c; --ri:#4fd1c0; --df:#ffa34d; --ii:#ff6b6b; --jet:#7fb0ff; --warm:#ff8f6b; --cold:#7fb0ff; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11151b; --surface:#19202a; --fg:#e6e9ee; --muted:#9aa5b2; --faint:#6c7887; --line:#2d3745; --soft:#222a35;
+  --accent:#ff8a4c; --ri:#4fd1c0; --df:#ffa34d; --ii:#ff6b6b; --jet:#7fb0ff; --warm:#ff8f6b; --cold:#7fb0ff; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);line-height:1.85;font-size:16px;
+  padding-block:24px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+a{color:var(--accent)}
+h1{font-size:clamp(1.5rem,3.5vw,2rem);line-height:1.35;margin:0;text-wrap:balance}
+h2{font-size:1.35rem;line-height:1.4;margin:0;text-wrap:balance}
+h3{font-size:1.05rem;margin:0}
+p{margin:0}
+.meta{font-family:var(--mono);font-size:.8rem;color:var(--muted)}
+.lead{color:var(--muted);max-width:44em}
+.chap{display:flex;flex-direction:column;gap:18px}
+.chead{display:flex;flex-direction:column;gap:2px;border-bottom:3px solid var(--c);padding-bottom:8px}
+.chead .tag{font-size:.8rem;color:var(--muted)}
+.chead h2{color:var(--c)}
+.one{background:var(--surface);border:1px solid var(--line);border-left:6px solid var(--c);padding:14px 18px;border-radius:6px;font-size:1.05rem}
+.one b{color:var(--c)}
+figure{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.svgbox{overflow-x:auto;padding:12px 10px 4px}
+figure svg{display:block;width:100%;min-width:560px;height:auto}
+figcaption{padding:6px 16px 14px;font-size:.88rem;color:var(--muted)}
+svg text{font-family:var(--font);fill:var(--fg);font-size:14px}
+svg .mut{fill:var(--muted)} svg .sm{font-size:12px}
+svg .ax{stroke:var(--muted);fill:none;stroke-width:1.5}
+svg .gr{stroke:var(--line);fill:none}
+.box{background:var(--soft);border-radius:8px;padding:14px 18px;display:flex;flex-direction:column;gap:6px}
+.box h3{color:var(--c)}
+.box ul,.box ol{margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:4px}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:.92rem}
+th,td{border-bottom:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--soft);font-weight:700}
+td.n,th.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+tr.hl td{background:color-mix(in srgb,var(--c,var(--accent)) 10%,transparent)}
+details.math{border:1px dashed var(--line);border-radius:8px;padding:8px 14px;background:var(--surface)}
+details.math summary{cursor:pointer;color:var(--muted);font-size:.9rem}
+details.math .f{font-family:var(--mono);font-size:.9rem;margin:6px 0;line-height:1.7}
+.note{color:var(--muted);font-size:.88rem}
+.toc{display:flex;flex-wrap:wrap;gap:8px}
+.toc a{text-decoration:none;color:var(--fg);border:1px solid var(--line);border-left:5px solid var(--c);background:var(--surface);padding:6px 12px;border-radius:6px;font-size:.92rem}
+.fix{border:1px solid var(--accent);border-radius:8px;padding:10px 14px;font-size:.9rem;background:color-mix(in srgb,var(--accent) 6%,var(--surface))}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header style="display:flex;flex-direction:column;gap:10px">
+  <div class="meta"><a href="./">← 揺れやすさ地図へ戻る</a></div>
+  <h1>晴天乱気流の要素の読み方</h1>
+  <p class="lead">揺れやすさ地図の「シアー過多の層(低リチャードソン数)」「流れの変形×シアー(変形場)」「強い高気圧性シアー(慣性不安定)」が、どんな状態で、なぜ揺れ、天気図でどう見つけるかをまとめました。数式は参考として、各章の最後に折りたたんであります。</p>
+  <nav class="toc" aria-label="目次">
+    <a href="#ri" style="--c:var(--ri)">シアー過多の層</a>
+    <a href="#df" style="--c:var(--df)">流れの変形×シアー</a>
+    <a href="#ii" style="--c:var(--ii)">強い高気圧性シアー</a>
+    <a href="#fx" style="--c:var(--jet)">FXFE502との関係</a>
+    <a href="#lim" style="--c:var(--muted)">この地図での限界</a>
+  </nav>
+</header>
+
+<section class="chap" style="--c:var(--accent)">
+  <div class="chead"><span class="tag">まとめ</span><h2>3つの要素をひとことで</h2></div>
+  <div class="scroll"><table>
+    <thead><tr><th>地図の表示</th><th>ひとことで言うと</th><th>天気図での手がかり</th></tr></thead>
+    <tbody>
+      <tr><td><b style="color:var(--ri)">シアー過多の層</b><br><span class="note">低リチャードソン数</span></td><td>VWSのある層で、気温が高さとともに急に下がっているほど揺れやすい</td><td>断面図で、ジェット軸のすぐ上・下、圏界面のすぐ下、上層前線の中</td></tr>
+      <tr><td><b style="color:var(--df)">流れの変形×シアー</b><br><span class="note">変形場(TI1)</span></td><td>2つの流れが合わさってジェットになる所や鞍部では、シアーがこれから強まる</td><td>300・250hPaで、等高度線が1本にまとまる所(ジェットの入口)、鞍部、等温線が詰まり始めた所</td></tr>
+      <tr><td><b style="color:var(--ii)">強い高気圧性シアー</b><br><span class="note">慣性不安定</span></td><td>ジェットの南側で、南へ行くほど風が急に弱まる所は、雲がなくても揺れやすい</td><td>ジェット軸の南側で等風速線が詰まった所(35°Nで緯度1度に約20kt以上)、鋭い気圧の尾根の頂上</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============ 低Ri ============ -->
+<section class="chap" id="ri" style="--c:var(--ri)">
+  <div class="chead"><span class="tag">1 ・ 低リチャードソン数(層の安定さとシアー)</span><h2>シアー過多の層</h2></div>
+  <p class="one"><b>VWSのある層で、気温が高さとともに急に下がっているほど(1000ftあたり3°Cに近いほど)揺れやすい。</b>逆転層や圏界面より上は揺れにくい。</p>
+
+  <figure>
+    <div class="svgbox">
+    <svg viewBox="0 0 820 330" role="img" aria-label="気温の下がり方と、上下の風の差による揺れやすさを示した図">
+      <text x="20" y="24" font-weight="700">① 層の安定さ = 気温の下がり方</text>
+      <line x1="60" y1="290" x2="380" y2="290" class="ax"/><line x1="60" y1="290" x2="60" y2="50" class="ax"/>
+      <text x="220" y="318" text-anchor="middle" class="mut sm">気温(右ほど高い)</text>
+      <text x="40" y="60" text-anchor="end" class="mut sm">高</text><text x="40" y="285" text-anchor="end" class="mut sm">低</text>
+      <line x1="300" y1="270" x2="160" y2="70" stroke="var(--warm)" stroke-width="3.5"/>
+      <text x="150" y="62" class="sm" style="fill:var(--warm)">3°C/1000ft(乾燥断熱)</text>
+      <line x1="300" y1="270" x2="207" y2="70" stroke="var(--accent)" stroke-width="3.5"/>
+      <text x="232" y="112" class="sm" style="fill:var(--accent)">2°C(標準大気)</text>
+      <line x1="300" y1="270" x2="300" y2="70" stroke="var(--cold)" stroke-width="3.5"/>
+      <text x="306" y="80" class="sm" style="fill:var(--cold)">等温</text>
+      <line x1="300" y1="270" x2="350" y2="70" stroke="var(--cold)" stroke-width="2" stroke-dasharray="6 4"/>
+      <text x="340" y="110" class="sm" style="fill:var(--cold)">逆転</text>
+      <text x="150" y="230" class="sm" style="fill:var(--warm)">← 混ざりやすい</text>
+      <text x="310" y="230" class="sm" style="fill:var(--cold)">混ざりにくい →</text>
+
+      <text x="440" y="24" font-weight="700">② 上下の風の差(VWS)が勝つと巻き上がる</text>
+      <defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z" style="fill:var(--jet)"/></marker></defs>
+      <g stroke="var(--jet)" stroke-width="3" fill="none" marker-end="url(#ar)">
+        <path d="M450 70 L770 70"/><path d="M450 115 L700 115"/><path d="M450 245 L560 245"/><path d="M450 290 L510 290"/>
+      </g>
+      <text x="780" y="74" class="mut sm">速い</text><text x="520" y="294" class="mut sm">遅い</text>
+      <path d="M450 180 C 480 180, 488 150, 515 152 C 540 154, 532 178, 515 175 C 503 172, 508 162, 518 163" stroke="var(--ri)" stroke-width="3" fill="none"/>
+      <path d="M540 180 C 570 180, 578 150, 605 152 C 630 154, 622 178, 605 175 C 593 172, 598 162, 608 163" stroke="var(--ri)" stroke-width="3" fill="none"/>
+      <path d="M630 180 C 660 180, 668 150, 695 152 C 720 154, 712 178, 695 175 C 683 172, 688 162, 698 163" stroke="var(--ri)" stroke-width="3" fill="none"/>
+      <text x="610" y="212" text-anchor="middle" class="sm" style="fill:var(--ri)">安定さに比べてシアーが強いと、境目の波が巻き上がって渦になる</text>
+    </svg>
+    </div>
+    <figcaption>図1:左は気温の下がり方(減率)。右に行くほど(気温が高さとともに下がりにくいほど)層は安定で、揺れにくくなります。右は、層の上と下の風の差が、安定さに勝ったときに起きる巻き上がり(ケルビン・ヘルムホルツ不安定)。</figcaption>
+  </figure>
+
+  <div class="box">
+    <h3>補足</h3>
+    <ul>
+      <li><b>見るのは「寒気」そのものより「気温の下がり方」</b>。上に寒気が入っても、下に暖気が入っても、下がり方が急になれば揺れやすくなります。</li>
+      <li><b>シアーが十分強ければ、寒気がなくても揺れます</b>。ジェット気流の中心のすぐ上と下は、安定さが普通でもシアーが強いので、この要素が大きくなります。</li>
+      <li><b>圏界面より上は揺れを止める側</b>。成層圏は非常に安定です。CATが圏界面のすぐ下に多く、越えると収まりやすいのはこのためです。</li>
+    </ul>
+  </div>
+
+  <h3>数値の目安(FL300付近、気温約−33°C)</h3>
+  <div class="scroll" style="--c:var(--ri)"><table>
+    <thead><tr><th>気温の下がり方</th><th class="n">VWS 4kt/1000ft</th><th class="n">VWS 6kt</th><th class="n">VWS 8kt</th><th class="n">「並」になるVWS</th></tr></thead>
+    <tbody>
+      <tr class="hl"><td>3.0°C/1000ft(乾燥断熱)</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">どんなに弱くても</td></tr>
+      <tr class="hl"><td>2.7°C</td><td class="n">0.84</td><td class="n">0.38</td><td class="n">0.21</td><td class="n">約4kt</td></tr>
+      <tr><td>2.5°C</td><td class="n">1.4</td><td class="n">0.64</td><td class="n">0.36</td><td class="n">約6kt</td></tr>
+      <tr><td>2.0°C(標準大気)</td><td class="n">2.9</td><td class="n">1.3</td><td class="n">0.73</td><td class="n">約8kt</td></tr>
+      <tr><td>1.0°C</td><td class="n">5.8</td><td class="n">2.6</td><td class="n">1.5</td><td class="n">約11kt</td></tr>
+      <tr><td>0°C(等温)</td><td class="n">8.8</td><td class="n">3.9</td><td class="n">2.2</td><td class="n">約14kt</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">表の数字はリチャードソン数Ri(小さいほど揺れやすい)。この地図は、Ri 0.75を「並」としています。理論上はRi 0.25未満で巻き上がりますが、モデルの層は厚く、細かいシアーが平均されてRiが大きめに出るので、目安を甘めにしています。</p>
+
+  <div class="box">
+    <h3>天気図での見つけ方</h3>
+    <ul>
+      <li>断面図(三十分大気解析など)で、<b>等風速線が上下に詰まっている所</b>(シアーが強い)と、<b>等温線の間隔が上下に広い所</b>(気温の下がり方が急)が重なる所。</li>
+      <li><b>ジェット軸の高さの±2,000ft</b>、<b>圏界面が段差になる所の近く</b>、<b>上層前線の中</b>。</li>
+      <li>エマグラムで、1000ftあたり2.5〜3°C下がる層に、風の大きな変化が重なる所。</li>
+    </ul>
+  </div>
+  <details class="math"><summary>数式(参考)</summary>
+    <p class="f">安定度  N² = (g / θ) × (層の上と下の温位の差 ÷ 層の厚さ)<br>シアー  S² = (上下の風の差 ÷ 層の厚さ)²(東西・南北の成分の和)<br>リチャードソン数  Ri = N² ÷ S²<br>地図の指数 = 0.75 ÷ Ri(Ri 0.75で「並」= 1.0)</p>
+    <p class="note">温位θ = T × (1000/p)^0.286。層は、MSMの隣り合う2つの気圧面のあいだ(厚さ1.5〜2km)です。</p>
+  </details>
+</section>
+
+<!-- ============ 変形場 ============ -->
+<section class="chap" id="df" style="--c:var(--df)">
+  <div class="chead"><span class="tag">2 ・ 変形場(Ellrod TI1)</span><h2>流れの変形×シアー</h2></div>
+  <p class="one"><b>上空で2つの流れが合わさってジェットになる所や、気圧の鞍部では、シアーがこれから強まって揺れやすくなる。</b></p>
+
+  <figure>
+    <div class="svgbox">
+    <svg viewBox="0 0 820 300" role="img" aria-label="合流する流れが等温線を詰め込み、シアーが強まっていく様子の図">
+      <defs><marker id="ad" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z" style="fill:var(--df)"/></marker></defs>
+      <text x="20" y="24" font-weight="700">① 上から見た流れ(ジェットの入口)</text>
+      <rect x="20" y="40" width="380" height="230" rx="8" style="fill:var(--soft)"/>
+      <g stroke="var(--df)" stroke-width="3" fill="none" marker-end="url(#ad)">
+        <path d="M40 70 C 120 80, 190 130, 260 150 L 380 152"/>
+        <path d="M40 240 C 120 230, 190 175, 260 158 L 380 158"/>
+      </g>
+      <text x="44" y="62" class="sm mut">北からの流れ</text><text x="44" y="262" class="sm mut">南からの流れ</text>
+      <g stroke-width="2.2">
+        <line x1="120" y1="50" x2="120" y2="262" style="stroke:var(--cold)"/>
+        <line x1="190" y1="50" x2="190" y2="262" style="stroke:var(--cold)" opacity=".75"/>
+        <line x1="245" y1="70" x2="245" y2="240" style="stroke:var(--warm)" opacity=".75"/>
+        <line x1="280" y1="95" x2="280" y2="215" style="stroke:var(--warm)"/>
+      </g>
+      <text x="300" y="120" class="sm" style="fill:var(--df)">等温線が</text><text x="300" y="138" class="sm" style="fill:var(--df)">詰められる</text>
+
+      <text x="440" y="24" font-weight="700">② 揺れになるまでの流れ</text>
+      <g font-size="13">
+        <rect x="440" y="44" width="360" height="40" rx="6" style="fill:var(--surface);stroke:var(--line)"/><text x="620" y="69" text-anchor="middle">流れが合流・引き伸ばし(変形)</text>
+        <rect x="440" y="104" width="360" height="40" rx="6" style="fill:var(--surface);stroke:var(--line)"/><text x="620" y="129" text-anchor="middle">温度差が狭い範囲に詰まる(上層前線)</text>
+        <rect x="440" y="164" width="360" height="40" rx="6" style="fill:var(--surface);stroke:var(--line)"/><text x="620" y="189" text-anchor="middle">温度風の関係で、上下の風の差(VWS)が強まる</text>
+        <rect x="440" y="224" width="360" height="40" rx="6" style="fill:var(--surface);stroke:var(--ri)"/><text x="620" y="249" text-anchor="middle" style="fill:var(--ri)">シアー過多の層になって揺れる</text>
+      </g>
+      <g stroke="var(--muted)" stroke-width="2" fill="none"><path d="M620 86 L620 101"/><path d="M620 146 L620 161"/><path d="M620 206 L620 221"/></g>
+    </svg>
+    </div>
+    <figcaption>図2:北と南からの流れが合わさってジェットになる所では、流れが空気を押しつぶし・引き伸ばして、等温線(青=寒、赤=暖)の間隔が詰まります。その結果、数時間かけてVWSが強まり、揺れやすくなります。</figcaption>
+  </figure>
+
+  <div class="box">
+    <h3>補足</h3>
+    <ul>
+      <li><b>変形そのものは揺れではありません</b>。「今は弱いが、数時間後に強まる揺れ」の予告です。前後の時刻の地図も見比べてください。</li>
+      <li><b>シアーがないと値は出ません</b>。この地図の値(TI1)は「変形 × VWS」なので、VWSがほぼない所では、変形が強くても小さくなります。</li>
+      <li><b>向きによっては逆に働きます</b>。等温線を引き離す向きの変形では、温度差はかえって弱まります。このとき、この要素は揺れを大きめに見積もります。</li>
+      <li>「温度変化」と言い換えるのは、少しずれています。温度差を詰めるのは変形の<b>結果</b>で、温度差がない所でも、この値は出ます。</li>
+    </ul>
+  </div>
+  <h3>数値の目安</h3>
+  <p>「並」(TI1 = 8×10⁻⁷/s²)は、たとえば <b>VWS 6kt/1000ftのとき、100kmあたり約15ktの風の変形</b>(合流・引き伸ばしによる風の食い違い)にあたります。VWSが大きいほど、少ない変形で「並」になります。</p>
+  <div class="box">
+    <h3>天気図での見つけ方</h3>
+    <ul>
+      <li>300・250hPaで、<b>等高度線の間隔がだんだん狭くなり、1本にまとまっていく所</b>(ジェットの入口)。</li>
+      <li>2つの高気圧と2つの低気圧にはさまれた<b>鞍部</b>。</li>
+      <li><b>等温線がジェットのそばに詰まり始めている所</b>(上層前線ができつつある所)。</li>
+    </ul>
+  </div>
+  <details class="math"><summary>数式(参考)</summary>
+    <p class="f">伸長変形  DST = (東西の風の東西方向の変化) − (南北の風の南北方向の変化)<br>シアー変形  DSH = (南北の風の東西方向の変化) + (東西の風の南北方向の変化)<br>全変形  DEF = √(DST² + DSH²)<br>TI1 = VWS × DEF  /  地図の指数 = TI1 ÷ 8×10⁻⁷(「並」= 1.0)</p>
+    <p class="note">Ellrod(1992)の乱気流指数TI1と同じ定義です。風は層の上下の面の平均。</p>
+  </details>
+</section>
+
+<!-- ============ 慣性不安定 ============ -->
+<section class="chap" id="ii" style="--c:var(--ii)">
+  <div class="chead"><span class="tag">3 ・ 慣性不安定(負の絶対渦度)</span><h2>強い高気圧性シアー</h2></div>
+  <p class="one"><b>ジェット気流の南側で、南へ行くほど風が急に弱まる所は、雲がなくても揺れやすい。</b>鋭い気圧の尾根の頂上付近も同じ。</p>
+
+  <figure>
+    <div class="svgbox">
+    <svg viewBox="0 0 820 320" role="img" aria-label="ジェット気流の南北の風速分布と、南側の急に弱まる部分が慣性不安定になる図">
+      <text x="20" y="24" font-weight="700">ジェット気流を南北に切ったときの風速(上空)</text>
+      <line x1="80" y1="270" x2="780" y2="270" class="ax"/><line x1="80" y1="270" x2="80" y2="50" class="ax"/>
+      <text x="80" y="294" class="mut sm">← 北</text><text x="780" y="294" text-anchor="end" class="mut sm">南 →</text>
+      <text x="70" y="60" text-anchor="end" class="mut sm">強</text><text x="70" y="265" text-anchor="end" class="mut sm">弱</text>
+      <rect x="90" y="44" width="300" height="220" style="fill:var(--jet);opacity:.07"/>
+      <rect x="455" y="44" width="200" height="220" style="fill:var(--ii);opacity:.10"/>
+      <path d="M90 240 C 200 220, 300 90, 400 70 C 430 64, 450 80, 480 120 C 520 175, 560 225, 640 245 C 690 255, 740 258, 775 258" stroke="var(--jet)" stroke-width="4" fill="none"/>
+      <text x="405" y="60" text-anchor="middle" class="sm" style="fill:var(--jet)">ジェット軸</text>
+      <text x="180" y="96" text-anchor="middle" class="sm" style="fill:var(--jet)">北側:低気圧性シアー</text>
+      <text x="180" y="114" text-anchor="middle" class="sm mut">(FXFE502の網掛け側)</text>
+      <text x="180" y="132" text-anchor="middle" class="sm mut">急でも慣性的には安定</text>
+      <text x="555" y="78" text-anchor="middle" class="sm" style="fill:var(--ii)">南側:高気圧性シアー</text>
+      <text x="555" y="96" text-anchor="middle" class="sm" style="fill:var(--ii)">急すぎると慣性不安定</text>
+      <path d="M490 150 L 560 150 L 560 215" stroke="var(--ii)" stroke-width="2" fill="none" stroke-dasharray="4 3"/>
+      <text x="566" y="190" class="sm" style="fill:var(--ii)">緯度1度で</text><text x="566" y="208" class="sm" style="fill:var(--ii)">約20kt以上落ちる</text>
+    </svg>
+    </div>
+    <figcaption>図3:ジェット気流は中心がいちばん速く、北と南で弱まります。南側(赤)で弱まり方が急すぎると、地球の自転が空気を元の位置に戻そうとする力より、横にずらす力が勝ち、流れが横方向に不安定になります。北側は回転の向きが逆なので、急でも安定です。</figcaption>
+  </figure>
+
+  <div class="box">
+    <h3>補足</h3>
+    <ul>
+      <li><b>「低渦度域」ではありません</b>。条件は、高気圧性の回転(負の相対渦度)が、地球の自転の回転(f)を<b>打ち消すほど強い</b>こと、つまり絶対渦度がマイナスになることです。多少の高気圧性回転はどこにでもあり、慣性不安定ではありません。</li>
+      <li><b>南ほど起きやすい</b>。地球の自転の回転は低緯度ほど小さいので、同じ風速の差でも、南ほど不安定になります。</li>
+      <li><b>気圧の尾根の頂上と、積乱雲の吹き出しでも起きます</b>。流れが時計回りに強く曲がる所では、風速の差が小さくても起きます。発達した積乱雲の上から噴き出す流れ(かなとこ雲)の周りも同じです。</li>
+      <li><b>単独では弱め</b>。慣性不安定は、空気を横にずらす遅い動きです。その動きでシアーが強まったり、波が砕けたりして、初めて揺れになります。シアー過多の層と重なると、強く揺れやすくなります。</li>
+    </ul>
+  </div>
+
+  <h3>数値の目安(南へ緯度1度進むあいだの風速の落ち方)</h3>
+  <div class="scroll" style="--c:var(--ii)"><table>
+    <thead><tr><th>緯度</th><th class="n">地球の自転の渦度 f</th><th class="n">FXFE502で慣性不安定になる渦度</th><th class="n">「弱」</th><th class="n">「並」</th></tr></thead>
+    <tbody>
+      <tr><td>25°N</td><td class="n">62×10⁻⁶/s</td><td class="n">−62 より小さい</td><td class="n">約13kt</td><td class="n">約17kt</td></tr>
+      <tr><td>30°N</td><td class="n">73</td><td class="n">−73 より小さい</td><td class="n">約16kt</td><td class="n">約20kt</td></tr>
+      <tr class="hl"><td>35°N</td><td class="n">84</td><td class="n">−84 より小さい</td><td class="n">約18kt</td><td class="n">約23kt</td></tr>
+      <tr><td>40°N</td><td class="n">94</td><td class="n">−94 より小さい</td><td class="n">約20kt</td><td class="n">約25kt</td></tr>
+      <tr><td>45°N</td><td class="n">103</td><td class="n">−103 より小さい</td><td class="n">約22kt</td><td class="n">約28kt</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">風がまっすぐ東西に吹き、南北の風速の差だけで回転している場合の目安です。流れが時計回りに曲がっていると、もっと小さい風速の差でも同じ状態になります。「弱」は絶対渦度がちょうど0、「並」は地球の自転の回転を25%上回る高気圧性回転です。</p>
+
+  <div class="box">
+    <h3>天気図での見つけ方</h3>
+    <ul>
+      <li>250・300hPa(AUPQ35など)で、<b>ジェット軸の南側の等風速線が詰まっている所</b>。上の表の落ち方より急なら要注意。</li>
+      <li><b>北へ強く張り出した、鋭い気圧の尾根の頂上付近</b>。</li>
+      <li><b>発達した積乱雲の上空と、その風下側</b>(かなとこ雲の吹き出し)。</li>
+      <li>FXFE502(500hPa)では、<b>網掛けのない側</b>で、渦度が上の表の値を下回る所。ただし、500hPaの図では上空(FL300〜390)の状況はわからず、平滑化もされているので、実際には250・300hPaの風速分布で探すほうが確実です。</li>
+    </ul>
+  </div>
+  <details class="math"><summary>数式(参考)</summary>
+    <p class="f">相対渦度  ζ = (南北の風の東西方向の変化) − (東西の風の南北方向の変化)<br>地球の自転の渦度  f = 2Ω sin(緯度)<br>絶対渦度  η = f + ζ  →  η &lt; 0 で慣性不安定<br>地図の指数 = (0.25 − η/f) ÷ 0.5(η/f = 0で「弱」0.5、−0.25で「並」1.0)</p>
+    <p class="note">本来は、等温位面の上で見た絶対渦度(ポテンシャル渦度の符号)で判定するのがより厳密です。この地図は、気圧面の上での簡易な判定です。</p>
+  </details>
+</section>
+
+<!-- ============ FXFE502 ============ -->
+<section class="chap" id="fx" style="--c:var(--jet)">
+  <div class="chead"><span class="tag">参考</span><h2>FXFE502の網掛けとの関係</h2></div>
+  <figure>
+    <div class="svgbox">
+    <svg viewBox="0 0 820 260" role="img" aria-label="ジェットの北側の正渦度、前面の上昇流、南側の負渦度と慣性不安定の位置関係の図">
+      <defs><pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="var(--jet)" stroke-width="2" opacity=".5"/></pattern></defs>
+      <rect x="20" y="20" width="780" height="225" rx="8" style="fill:var(--soft)"/>
+      <path d="M80 50 C 200 40, 260 110, 330 120 C 400 130, 430 60, 520 50 C 600 42, 700 50, 780 60 L 780 30 L 60 30 Z" fill="url(#hatch)"/>
+      <path d="M60 135 C 200 120, 260 185, 330 190 C 400 195, 430 125, 520 115 C 600 108, 700 118, 790 125" stroke="var(--jet)" stroke-width="4" fill="none"/>
+      <text x="90" y="128" class="sm" style="fill:var(--jet)">ジェット軸</text>
+      <text x="150" y="70" class="sm" style="fill:var(--jet)">網掛け=正の渦度(低気圧性)</text>
+      <ellipse cx="420" cy="80" rx="52" ry="26" fill="none" stroke="var(--accent)" stroke-width="3" stroke-dasharray="6 4"/>
+      <text x="420" y="84" text-anchor="middle" class="sm" style="fill:var(--accent)">谷の前面</text>
+      <text x="480" y="38" class="sm" style="fill:var(--accent)">正渦度移流→上昇流→雲・悪天</text>
+      <ellipse cx="560" cy="160" rx="80" ry="24" fill="none" stroke="var(--ii)" stroke-width="3" stroke-dasharray="6 4"/>
+      <text x="560" y="164" text-anchor="middle" class="sm" style="fill:var(--ii)">強い負の渦度</text>
+      <text x="560" y="205" text-anchor="middle" class="sm" style="fill:var(--ii)">ジェット南側:慣性不安定→晴天でも揺れる</text>
+      <text x="230" y="220" class="sm mut">気圧の谷</text><text x="600" y="98" class="sm mut">気圧の尾根</text>
+    </svg>
+    </div>
+    <figcaption>図4:FXFE502の網掛け(正の渦度)と、慣性不安定(強い負の渦度)は、ジェットをはさんで反対側にあります。雲が発達しやすいのは網掛けの中ではなく、渦度の極大の前面(東〜北東側)です。</figcaption>
+  </figure>
+  <div class="scroll"><table>
+    <thead><tr><th></th><th>網掛けの前面(正渦度移流)</th><th>慣性不安定</th></tr></thead>
+    <tbody>
+      <tr><td>渦度</td><td>正(低気圧性)の側</td><td>強い負(高気圧性)の側。絶対渦度 &lt; 0</td></tr>
+      <tr><td>何が起きるか</td><td>大きな規模の上昇流 → 雲・降水(水蒸気と不安定があれば)</td><td>横方向の不安定 → 小さな循環・波・シアー → 揺れ</td></tr>
+      <tr><td>主な場所</td><td>気圧の谷の前面</td><td>ジェットの南側、気圧の尾根の頂上、積乱雲の吹き出し</td></tr>
+      <tr><td>雲</td><td>雲を作る仕組み</td><td>雲とは関係なく起きる(晴天乱気流の一因)</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="chap" id="lim" style="--c:var(--muted)">
+  <div class="chead"><span class="tag">注意</span><h2>この地図での限界</h2></div>
+  <ul class="note" style="margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:6px">
+    <li>計算はMSMの隣り合う2つの気圧面のあいだ(厚さ1.5〜2km)ごとです。層の中の薄い強いシアーは平均されて弱めに出るので、シアー過多の層の目安は、理論値(Ri 0.25)より甘め(Ri 0.75)にしています。</li>
+    <li>水平は約10kmの格子をさらに約15〜20kmなめらかにしているので、ジェット南側の細い帯状の強いシアーは弱めに出ます。強い高気圧性シアーと流れの変形は、実際より小さめに出る傾向があります。</li>
+    <li>値は予報から計算した、乱れやすい環境の目安です。乱気流そのものの予報ではなく、気象庁の航空気象情報の代わりにはなりません。</li>
+  </ul>
+</section>
+
+</div>
+</body>
+</html>
