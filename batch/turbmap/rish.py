@@ -24,23 +24,26 @@ def list_inits(days=2):
     return sorted(set(inits), reverse=True)
 
 
-def file_url(init):
-    return f"{BASE}{init[:8]}/MSM{init}P.nc"
+def file_url(init, kind="P"):
+    """kind: "P"=気圧面、"S"=地上"""
+    return f"{BASE}{init[:8]}/MSM{init}{kind}.nc"
 
 
 def is_stable(init, min_age_minutes=10):
-    """掲載直後(書き込み途中の可能性)を避けるため、更新から一定時間たっているか確かめる。"""
-    r = requests.head(file_url(init), headers=UA, timeout=60)
-    r.raise_for_status()
-    lm = r.headers.get("Last-Modified")
-    if not lm:
-        return True
-    age = datetime.now(timezone.utc) - parsedate_to_datetime(lm)
-    return age >= timedelta(minutes=min_age_minutes)
+    """掲載直後(書き込み途中の可能性)を避けるため、気圧面・地上の両方が掲載から一定時間たっているか確かめる。"""
+    for kind in ("P", "S"):
+        r = requests.head(file_url(init, kind), headers=UA, timeout=60)
+        if r.status_code == 404:
+            return False
+        r.raise_for_status()
+        lm = r.headers.get("Last-Modified")
+        if lm and datetime.now(timezone.utc) - parsedate_to_datetime(lm) < timedelta(minutes=min_age_minutes):
+            return False
+    return True
 
 
-def download(init, dest, retries=3):
-    url = file_url(init)
+def download(init, dest, kind="P", retries=3):
+    url = file_url(init, kind)
     for k in range(retries):
         try:
             with requests.get(url, headers=UA, stream=True, timeout=300) as r:

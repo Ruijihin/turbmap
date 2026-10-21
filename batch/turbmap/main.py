@@ -3,7 +3,7 @@
 例:
   python -m turbmap.main --init auto --r2                 # 新しい初期値を探して処理し、R2へ
   python -m turbmap.main --init 2026102009 --out ./out    # 指定した初期値をローカルへ
-  python -m turbmap.main --init 2026102009 --file MSM2026102009P.nc --out ./out
+  python -m turbmap.main --init 2026102009 --file MSM2026102009P.nc --sfile MSM2026102009S.nc --out ./out
 """
 import argparse
 import io
@@ -46,20 +46,27 @@ def iso(dt):
     return dt.strftime("%Y-%m-%dT%H:%MZ")
 
 
-def process(init, store, nc_path=None):
-    tmp = None
+def _fetch(init, kind):
+    tmp = tempfile.NamedTemporaryFile(suffix=f"{kind}.nc", delete=False)
+    tmp.close()
+    print(f"[{init}] ダウンロード: {rish.file_url(init, kind)}")
+    rish.download(init, tmp.name, kind)
+    return tmp.name
+
+
+def process(init, store, nc_path=None, s_path=None):
+    tmps = []
     if nc_path is None:
-        tmp = tempfile.NamedTemporaryFile(suffix=".nc", delete=False)
-        tmp.close()
-        print(f"[{init}] ダウンロード: {rish.file_url(init)}")
-        rish.download(init, tmp.name)
-        nc_path = tmp.name
+        nc_path = _fetch(init, "P")
+        tmps.append(nc_path)
+        s_path = _fetch(init, "S")
+        tmps.append(s_path)
     try:
-        print(f"[{init}] 計算")
-        arr, info = diag.compute_run(nc_path)
+        print(f"[{init}] 計算" + ("" if s_path else "(地上ファイルなし:雨を使わない)"))
+        arr, aux, info = diag.compute_run(nc_path, s_path)
     finally:
-        if tmp:
-            os.unlink(tmp.name)
+        for t in tmps:
+            os.unlink(t)
     t0 = init_dt(init)
     valid = [iso(t0 + timedelta(hours=h)) for h in info["ft"]]
     meta = dict(info, init=init, init_iso=iso(t0), valid=valid,
@@ -69,7 +76,7 @@ def process(init, store, nc_path=None):
     files, total = [], 0
     # 予報時刻ごとに1ファイル(ページは選んだ時刻の分だけ読み込む)
     for k, ft in enumerate(info["ft"]):
-        png = pack_png(arr[k])
+        png = pack_png(np.concatenate([arr[k].ravel(), aux[k].ravel()]))
         name = f"ft{ft:02d}.png"
         store.put(prefix + name, png, "image/png", "public, max-age=31536000, immutable")
         files.append(name)
@@ -103,6 +110,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--init", default="auto", help="auto または YYYYMMDDHH(UTC)")
     ap.add_argument("--file", help="手元のMSM気圧面ファイルを使う(--init と一緒に指定)")
+    ap.add_argument("--sfile", help="手元のMSM地上ファイルを使う(--file と一緒に指定。省略すると雨を使わない)")
     ap.add_argument("--out", help="ローカルフォルダに出力する")
     ap.add_argument("--r2", action="store_true", help="Cloudflare R2 に出力する")
     ap.add_argument("--retention-days", type=int, default=int(os.environ.get("RETENTION_DAYS", 60)))
@@ -122,11 +130,12 @@ def main(argv=None):
             print("新しい初期値はありません")
             return 0
     else:
-        todo = [a.init]
+        todo = [s for s in a.init.split(",") if s]   # カンマ区切りで複数指定できる
 
     entries = []
     for init in sorted(todo):
-        entries.append(process(init, store, a.file if a.init != "auto" else None))
+        local = a.init != "auto" and a.file
+        entries.append(process(init, store, a.file if local else None, a.sfile if local else None))
     idx = update_index(store, entries, a.retention_days)
     print(f"一覧を更新しました(保存中 {len(idx['runs'])} 件)")
     return 0

@@ -1,11 +1,14 @@
-"""MSM気圧面データから揺れやすさの要素を計算する。
+"""MSM気圧面データ(と地上データ)から揺れやすさの要素を計算する。
 
 出力は要素ごとの「強さの指数」(並=1.0)を0.01刻みの整数(0〜255)にした配列。
 配列の形は [予報時刻, 層, 要素, 緯度, 経度]。
+あわせて、高さに関係しない補助の量(CAPE・雲頂・雨・上昇流)を [予報時刻, 量, 緯度, 経度] で返す。
 """
 import numpy as np
 from scipy.io import netcdf_file
 from scipy.ndimage import gaussian_filter, uniform_filter
+
+from . import convect
 
 G0 = 9.80665
 RD = 287.05
@@ -14,7 +17,10 @@ EARTH_R = 6371e3
 
 # 上下の気圧面の組(hPa)。層の値はこの2面の間の量。
 LAYER_PAIRS = [(700, 600), (600, 500), (500, 400), (400, 300), (300, 250), (250, 200), (200, 150)]
-ELEMS = ["mw", "ii", "df", "ri", "vws", "rhi"]
+ELEMS = ["mw", "ii", "df", "ri", "vws", "rhi", "cv", "mi"]
+MISSING_ELEMS = ["rhi", "mi"]          # 湿度を使うので、300hPaより上は「データなし」
+# 補助の量:名前と、画素値に掛けると元の単位になる係数
+AUX = [("cape", 40.0), ("el_fl", 2.0), ("rain", 0.2), ("wup", 0.02)]   # J/kg, FL, mm/h, m/s
 
 # 「並(moderate)相当」の目安。指数 = 値 / 目安。
 THRESH = {
@@ -69,13 +75,15 @@ class MsmPressureFile:
         self.f.close()
 
 
-def compute_run(path, ft_min=3):
+def compute_run(path, spath=None, ft_min=3):
     """1つの初期値ファイルについて、FT>=ft_minの全予報時刻を計算する。
 
-    MSMのFT=0は鉛直流がゼロなので使わない。
-    戻り値: (uint8配列[T,L,E,ny,nx], 情報dict)
+    MSMのFT=0は鉛直流がゼロなので使わない。spath(地上ファイル)が無いときは、
+    雨を使わずに上昇流だけで対流の兆候を見る。
+    戻り値: (uint8配列[T,L,E,ny,nx], uint8配列[T,補助,ny,nx], 情報dict)
     """
     m = MsmPressureFile(path)
+    sfc = convect.MsmSurfaceFile(spath) if spath else None
     lat, lon = m.lat, m.lon
     dy = np.deg2rad(lat[0] - lat[1]) * EARTH_R           # 緯度は北から南の順
     dx = np.deg2rad(lon[1] - lon[0]) * EARTH_R * np.cos(np.deg2rad(lat))[:, None]
@@ -92,9 +100,24 @@ def compute_run(path, ft_min=3):
     t_idx = [k for k, h in enumerate(m.hours) if h >= ft_min]
 
     out = np.zeros((len(t_idx), len(LAYER_PAIRS), len(ELEMS), len(jj), len(ii)), dtype=np.uint8)
+    aux_out = np.zeros((len(t_idx), len(AUX), len(jj), len(ii)), dtype=np.uint8)
     sm = lambda x: gaussian_filter(x, 1.5)
+    levs = m.lev                                           # 下→上(1000→100hPa)
 
     for a_t, it in enumerate(t_idx):
+        hour = m.hours[it]
+        # ---- 揺れる雲:対流(CAPE×対流の兆候、雲の柱の高さで重み付け)
+        T = np.stack([m.read("temp", it, p) for p in levs])
+        RH = np.stack([m.read("rh", it, p) for p in levs])
+        Z = np.stack([m.read("z", it, p) for p in levs])
+        W = np.stack([m.read("w", it, p) for p in levs])
+        sp = sfc.sp_hpa(hour)[: len(lat), : len(lon)] if sfc else np.full(T.shape[1:], 1013.0)
+        rain = sfc.rain_max(hour)[: len(lat), : len(lon)] if sfc else np.zeros(T.shape[1:])
+        cv_layers, aux = convect.convective_layers(
+            levs, T, RH, Z, W, sp, rain, LAYER_PAIRS, lambda k: levs[k] * 100 / (RD * T[k]))
+        for a_x, (name, scale) in enumerate(AUX):
+            aux_out[a_t, a_x] = np.clip(np.round(aux[name][np.ix_(jj, ii)] / scale), 0, 255).astype(np.uint8)
+
         for a_l, (pa, pb) in enumerate(LAYER_PAIRS):
             ta, tb = sm(m.read("temp", it, pa)), sm(m.read("temp", it, pb))
             ua, ub = sm(m.read("u", it, pa)), sm(m.read("u", it, pb))
@@ -131,13 +154,16 @@ def compute_run(path, ft_min=3):
                 "ri": THRESH["ri"] / np.maximum(ri, 0.05),
                 "vws": vws * 0.3048 * 1.94384 * 1000 / THRESH["vws"],
                 "rhi": rhi / 100,
+                "cv": cv_layers[a_l],
+                "mi": convect.moist_instability(ta, tb, rha, rhb, za, zb, pa, pb, rhi),
             }
             for a_e, e in enumerate(ELEMS):
                 x = score[e][np.ix_(jj, ii)]
                 out[a_t, a_l, a_e] = np.clip(np.round(x * 100), 0, 254).astype(np.uint8)
             if min(pa, pb) < RH_MIN_P:
                 # MSMの湿度は300hPaより上では欠測(全マスが一定値)なので、氷相対湿度は「データなし」にする
-                out[a_t, a_l, ELEMS.index("rhi")] = RH_MISSING
+                for e in MISSING_ELEMS:
+                    out[a_t, a_l, ELEMS.index(e)] = RH_MISSING
 
     mids = [float(np.exp((np.log(a) + np.log(b)) / 2)) for a, b in LAYER_PAIRS]
     info = {
@@ -157,7 +183,13 @@ def compute_run(path, ft_min=3):
         "missing": RH_MISSING,
         "rhi_valid_max_fl": round(isa_flight_level(RH_MIN_P), 1),   # これより上は氷相対湿度なし
         "rhi_valid_layers": sum(1 for a, b in LAYER_PAIRS if min(a, b) >= RH_MIN_P),
-        "thresholds": THRESH,
+        "missing_elems": MISSING_ELEMS,
+        "aux": [a for a, _ in AUX],
+        "aux_scale": [s for _, s in AUX],
+        "thresholds": dict(THRESH, **convect.THRESH_CV),
+        "surface": bool(sfc),
     }
     m.close()
-    return out, info
+    if sfc:
+        sfc.close()
+    return out, aux_out, info
