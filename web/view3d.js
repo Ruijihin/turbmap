@@ -131,7 +131,7 @@ export function create(container) {
     setVolume(v, nx, ny, nz, flMin, flMax) {
       const u8 = new Uint8Array(v.length);
       // v は指数(1.0=並)。テクスチャには v*100 を0〜255で入れ、シェーダーで 255分の1 して 2.55 を掛けて戻す
-      for (let i = 0; i < v.length; i++) u8[i] = Math.max(0, Math.min(255, Math.round(v[i] * 100)));
+      for (let i = 0; i < v.length; i++) u8[i] = v[i] > 0 ? Math.min(255, Math.round(v[i] * 100)) : 0;   // NaN(データなし)は0
       if (mat.uniforms.uVol.value) mat.uniforms.uVol.value.dispose();
       const t = new THREE.Data3DTexture(u8, nx, ny, nz);
       t.format = THREE.RedFormat; t.type = THREE.UnsignedByteType; t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;

@@ -16,7 +16,8 @@ G0 = 9.80665
 THRESH_CV = {
     "cape": 500.0,      # J/kg   浮力の目安
     "rain": 10.0,       # mm/h   強い雨の目安(前後1時間の最大、周囲約25km)
-    "wup": 1.0,         # m/s    強い上昇流の目安(850〜300hPaの最大)
+    "wup": 1.0,         # m/s    強い上昇流の目安(850〜300hPaの、雲の中の最大)
+    "rh_cloud": 90.0,   # %      上昇流を数える「雲の中」の相対湿度
     "nm2": 6e-5,        # s^-2   湿潤成層のマイナスの大きさ(相当温位が1kmで約2K下がる程度)
     "overshoot": 0.10,  # 雲頂の上、雲頂気圧の何割までを「突き抜け」とするか(約2,000ft)
 }
@@ -146,11 +147,13 @@ def convective_layers(levs, T, RH, Z, W, sp, rain, pairs, rho_of):
     cape, p_lfc, p_el = parcel(levs, T, RH, Z, sp)
     cape = gaussian_filter(cape, 1.0)
     # 実際に対流が起きている兆候:強い雨か、強い上昇流
+    # 上昇流は、飽和した層(雲の中)のものだけ数える。山岳波などで乾いた空気が持ち上がる分は対流ではない
     wup = np.zeros(sp.shape)
     for k, p in enumerate(levs):
         if 300 <= p <= 850:
             w_ms = -W[k] / (rho_of(k) * G0)
-            wup = np.maximum(wup, np.where(p <= sp - 5, w_ms, 0))
+            incloud = (p <= sp - 5) & (RH[k] >= THRESH_CV["rh_cloud"])
+            wup = np.maximum(wup, np.where(incloud, w_ms, 0))
     act = np.maximum(rain / THRESH_CV["rain"], wup / THRESH_CV["wup"])
     col = np.sqrt(np.clip(cape / THRESH_CV["cape"], 0, None) * np.clip(act, 0, None))
     out = []

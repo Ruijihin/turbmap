@@ -247,6 +247,8 @@ function mwHeightFactor(fl){return Math.max(MW_FLOOR,Math.min(1,1-(fl-120)/80*(1
 var withCloud=true;
 function totalCore(m,ii,df,ri,vw,cv,mi,fl,zf,o){
   var mo=m*zf,mn=m*(1-zf),g=mwHeightFactor(fl);
+  // 対流の上昇流・下降流も鉛直流の揺らぎとして現れるので、対流がある場所の重力波の分は対流の一部とみなす(二重計上を防ぐ)
+  var cvq=withCloud&&cv>0?Math.min(1,cv/0.8):0;mn*=1-cvq;
   var mwE=mo*g+mn*MW_NONORO,mwS=mo+0.6*mn;     // mwE:単独の評価、mwS:他の要素と組み合わさるときの波の強さ
   var riE=ri*Math.max(0.3,Math.min(1,vw/0.6));
   var iiE=ii*((ri>=0.5||vw>=0.5)?1:0.5);
@@ -263,6 +265,7 @@ function totalCore(m,ii,df,ri,vw,cv,mi,fl,zf,o){
   if(o){
     if(m>=0.8&&mo>=mn&&g<0.6) N.push('鉛直流の揺らぎ(地形性)だが、高度が高いので単独では割り引き(×'+f2(g)+')');
     else if(m>=0.8&&mn>mo) N.push('鉛直流の揺らぎ(地形から離れた重力波)なので割り引き(×'+MW_NONORO+')');
+    if(m>=0.5&&cvq>0.3) N.push('鉛直流の揺らぎの一部は対流によるものとして、波からは除く');
     if(ri>=0.8&&vw<0.6) N.push('低Riだがシアーが弱い → 割り引き');
     if(ii>=0.8&&!(ri>=0.5||vw>=0.5)) N.push('慣性不安定だが成層が安定でシアーも弱い → 割り引き');
     if(df>=0.8&&vw<0.3) N.push('変形場だがシアーがほぼない → 割り引き');
@@ -419,7 +422,7 @@ function draw2d(){
     if(cur.mode==='total'){T[k]=totalCore(F.mw[k],F.ii[k],F.df[k],F.ri[k],F.vws[k],F.cv[k],F.mi[k],cur.fl,zfAt(k),null);var tc=totColor(T[k],dk);
       if(tc){r=r*(1-tc.a)+tc.c[0]*tc.a;g=g*(1-tc.a)+tc.c[1]*tc.a;b=b*(1-tc.a)+tc.c[2]*tc.a;}}
     else{for(var i=0;i<EL.length;i++){var e=EL[i];if(!e.on) continue;
-      var a=Math.max(0,Math.min(1,(F[e.k][k]-0.4)/1.2))*0.92;if(a<=0) continue;
+      var a=Math.max(0,Math.min(1,(F[e.k][k]-0.5)/1.1))*0.92;if(!(a>0)) continue;   // 0.5(弱)から色を付ける。NaN(データなし)は塗らない
       var c=dk?e.cd:e.c;r=r*(1-a)+c[0]*a;g=g*(1-a)+c[1]*a;b=b*(1-a)+c[2]*a;}}
     px[k*4]=r;px[k*4+1]=g;px[k*4+2]=b;px[k*4+3]=255;
   }
@@ -583,8 +586,9 @@ function bil(vol,z,lon,lat){
 }
 function colorFor(v,dk,bg){
   var r=bg[0],g=bg[1],b=bg[2];
+  if(!(v>=0)) return [r,g,b];   // NaN(データなし)
   if(target==='total'){var tc=totColor(v,dk);if(tc){r=r*(1-tc.a)+tc.c[0]*tc.a;g=g*(1-tc.a)+tc.c[1]*tc.a;b=b*(1-tc.a)+tc.c[2]*tc.a;}}
-  else{var e=elemOf(target),a=Math.max(0,Math.min(1,(v-0.4)/1.2))*0.92,c=dk?e.cd:e.c;r=r*(1-a)+c[0]*a;g=g*(1-a)+c[1]*a;b=b*(1-a)+c[2]*a;}
+  else{var e=elemOf(target),a=Math.max(0,Math.min(1,(v-0.5)/1.1))*0.92,c=dk?e.cd:e.c;if(a>0){r=r*(1-a)+c[0]*a;g=g*(1-a)+c[1]*a;b=b*(1-a)+c[2]*a;}}
   return [r,g,b];
 }
 function updateSec(){
@@ -593,7 +597,7 @@ function updateSec(){
   wrap.hidden=false;rd.hidden=false;
   var vol=buildVolume(),path=samplePath(),n=path.n,nz=FLS.length,dk=dark(),bg=dk?[15,23,32]:[238,243,248];
   var mat=new Float32Array(n*nz),i,z;
-  for(i=0;i<n;i++) for(z=0;z<nz;z++) mat[i*nz+z]=bil(vol,z,path.lon[i],path.lat[i]);
+  for(i=0;i<n;i++) for(z=0;z<nz;z++){var bv=bil(vol,z,path.lon[i],path.lat[i]);mat[i*nz+z]=bv>=0?bv:-1;}
   var cv2=$('seccv'),dpr=Math.min(window.devicePixelRatio||1,2),cw=cv2.clientWidth||800,ch=320;
   cv2.width=Math.round(cw*dpr);cv2.height=Math.round(ch*dpr);
   var L=54,R=14,T=26,B=40,pw=cw-L-R,ph=ch-T-B,pwd=Math.round(pw*dpr),phd=Math.round(ph*dpr);
@@ -603,7 +607,7 @@ function updateSec(){
     for(var ry=0;ry<phd;ry++){
       var fl=flMax-(ry+0.5)/phd*(flMax-flMin),zf=(fl-flMin)/10,z0=Math.min(nz-2,Math.floor(zf)),zt=zf-z0;
       var a0=mat[s0*nz+z0]*(1-zt)+mat[s0*nz+z0+1]*zt,a1=mat[(s0+1)*nz+z0]*(1-zt)+mat[(s0+1)*nz+z0+1]*zt,v=a0*(1-st)+a1*st;
-      var c=colorFor(v,dk,bg),o=(ry*pwd+cx)*4;px[o]=c[0];px[o+1]=c[1];px[o+2]=c[2];px[o+3]=255;
+      var c=colorFor(v<0?NaN:v,dk,bg),o=(ry*pwd+cx)*4;px[o]=c[0];px[o+1]=c[1];px[o+2]=c[2];px[o+3]=255;
     }
   }
   ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv2.width,cv2.height);ctx.putImageData(img,Math.round(L*dpr),Math.round(T*dpr));
