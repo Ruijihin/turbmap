@@ -32,6 +32,7 @@ jobs:
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       R2_BUCKET: ${{ vars.R2_BUCKET || 'turbmap-data' }}
       RETENTION_DAYS: ${{ vars.RETENTION_DAYS || '60' }}
+      FT_MAX: ${{ vars.FT_MAX || '21' }}
     steps:
       - uses: actions/checkout@v4
 

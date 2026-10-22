@@ -76,10 +76,10 @@ class MsmPressureFile:
         self.f.close()
 
 
-def compute_run(path, spath=None, ft_min=3):
+def compute_run(path, spath=None, ft_min=3, ft_max=33):
     """1つの初期値ファイルについて、FT>=ft_minの全予報時刻を計算する。
 
-    MSMのFT=0は鉛直流がゼロなので使わない。spath(地上ファイル)が無いときは、
+    MSMのFT=0は鉛直流がゼロなので使わない。ft_max より先の予報時刻は計算しない。spath(地上ファイル)が無いときは、
     雨を使わずに上昇流だけで対流の兆候を見る。
     戻り値: (uint8配列[T,L,E,ny,nx], uint8配列[T,補助,ny,nx], 情報dict)
     """
@@ -98,7 +98,7 @@ def compute_run(path, spath=None, ft_min=3):
 
     jj = np.where((lat >= DOMAIN["lat_min"]) & (lat <= DOMAIN["lat_max"]))[0]
     ii = np.where((lon >= DOMAIN["lon_min"]) & (lon <= DOMAIN["lon_max"]))[0]
-    t_idx = [k for k, h in enumerate(m.hours) if h >= ft_min]
+    t_idx = [k for k, h in enumerate(m.hours) if ft_min <= h <= ft_max]
 
     out = np.zeros((len(t_idx), len(LAYER_PAIRS), len(ELEMS), len(jj), len(ii)), dtype=np.uint8)
     aux_out = np.zeros((len(t_idx), len(AUX), len(jj), len(ii)), dtype=np.uint8)

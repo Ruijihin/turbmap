@@ -52,6 +52,7 @@ git push -u origin main
 | Secret | `R2_SECRET_ACCESS_KEY` | Secret Access Key |
 | Variable(任意) | `R2_BUCKET` | バケット名を変えた場合だけ |
 | Variable(任意) | `RETENTION_DAYS` | 保存日数(既定60) |
+| Variable(任意) | `FT_MAX` | 計算する最後の予報時間(既定21。MSMは最大33。33にすると1回分のデータが約1.6倍) |
 
 ## 4. 最初のバッチを手動で動かす
 

@@ -54,7 +54,7 @@ def _fetch(init, kind):
     return tmp.name
 
 
-def process(init, store, nc_path=None, s_path=None):
+def process(init, store, nc_path=None, s_path=None, ft_max=33):
     tmps = []
     if nc_path is None:
         nc_path = _fetch(init, "P")
@@ -63,7 +63,7 @@ def process(init, store, nc_path=None, s_path=None):
         tmps.append(s_path)
     try:
         print(f"[{init}] 計算" + ("" if s_path else "(地上ファイルなし:雨を使わない)"))
-        arr, aux, info = diag.compute_run(nc_path, s_path)
+        arr, aux, info = diag.compute_run(nc_path, s_path, ft_max=ft_max)
     finally:
         for t in tmps:
             os.unlink(t)
@@ -113,6 +113,8 @@ def main(argv=None):
     ap.add_argument("--sfile", help="手元のMSM地上ファイルを使う(--file と一緒に指定。省略すると雨を使わない)")
     ap.add_argument("--out", help="ローカルフォルダに出力する")
     ap.add_argument("--r2", action="store_true", help="Cloudflare R2 に出力する")
+    ap.add_argument("--ft-max", type=int, default=int(os.environ.get("FT_MAX", 21)),
+                    help="計算する最後の予報時間(既定21。MSMは最大33)")
     ap.add_argument("--retention-days", type=int, default=int(os.environ.get("RETENTION_DAYS", 60)))
     ap.add_argument("--max-runs", type=int, default=2, help="auto のとき、1回で処理する最大件数")
     ap.add_argument("--force", action="store_true", help="処理済みでもやり直す")
@@ -135,7 +137,7 @@ def main(argv=None):
     entries = []
     for init in sorted(todo):
         local = a.init != "auto" and a.file
-        entries.append(process(init, store, a.file if local else None, a.sfile if local else None))
+        entries.append(process(init, store, a.file if local else None, a.sfile if local else None, a.ft_max))
     idx = update_index(store, entries, a.retention_days)
     print(f"一覧を更新しました(保存中 {len(idx['runs'])} 件)")
     return 0
