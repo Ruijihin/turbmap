@@ -16,11 +16,12 @@ OMEGA = 7.292e-5
 EARTH_R = 6371e3
 
 # 上下の気圧面の組(hPa)。層の値はこの2面の間の量。
-LAYER_PAIRS = [(700, 600), (600, 500), (500, 400), (400, 300), (300, 250), (250, 200), (200, 150)]
+# 950〜700hPaの4層(FL025〜085)は低高度用。地面より下にかかる層は値を0にする
+LAYER_PAIRS = [(950, 900), (900, 850), (850, 800), (800, 700), (700, 600), (600, 500), (500, 400), (400, 300), (300, 250), (250, 200), (200, 150)]
 ELEMS = ["mw", "ii", "df", "ri", "vws", "rhi", "cv", "mi"]
 MISSING_ELEMS = ["rhi", "mi"]          # 湿度を使うので、300hPaより上は「データなし」
 # 補助の量:名前と、画素値に掛けると元の単位になる係数
-AUX = [("cape", 40.0), ("el_fl", 2.0), ("rain", 0.2), ("wup", 0.02)]   # J/kg, FL, mm/h, m/s
+AUX = [("cape", 40.0), ("el_fl", 2.0), ("rain", 0.2), ("wup", 0.02), ("wind10", 0.5)]   # J/kg, FL, mm/h, m/s, kt
 
 # 「並(moderate)相当」の目安。指数 = 値 / 目安。
 THRESH = {
@@ -115,6 +116,7 @@ def compute_run(path, spath=None, ft_min=3):
         rain = sfc.rain_max(hour)[: len(lat), : len(lon)] if sfc else np.zeros(T.shape[1:])
         cv_layers, aux = convect.convective_layers(
             levs, T, RH, Z, W, sp, rain, LAYER_PAIRS, lambda k: levs[k] * 100 / (RD * T[k]))
+        aux["wind10"] = sfc.wind10_max(hour)[: len(lat), : len(lon)] if sfc else np.zeros(T.shape[1:])
         for a_x, (name, scale) in enumerate(AUX):
             aux_out[a_t, a_x] = np.clip(np.round(aux[name][np.ix_(jj, ii)] / scale), 0, 255).astype(np.uint8)
 
@@ -160,6 +162,9 @@ def compute_run(path, spath=None, ft_min=3):
             for a_e, e in enumerate(ELEMS):
                 x = score[e][np.ix_(jj, ii)]
                 out[a_t, a_l, a_e] = np.clip(np.round(x * 100), 0, 254).astype(np.uint8)
+            if sfc:   # 層の下の面が地面より下にある所(山岳部)は、外挿された値なので0にする
+                under = (sp < pa + 5)[np.ix_(jj, ii)]
+                out[a_t, a_l][:, under] = 0
             if min(pa, pb) < RH_MIN_P:
                 # MSMの湿度は300hPaより上では欠測(全マスが一定値)なので、氷相対湿度は「データなし」にする
                 for e in MISSING_ELEMS:

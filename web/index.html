@@ -227,7 +227,7 @@ details.doc ol,details.doc ul{margin:6px 0 0;padding-left:1.4em;display:flex;fle
         <div class="loading" id="loading">データを読み込んでいます</div>
       </div>
       <div class="stage3" id="stage3" hidden></div>
-      <div class="flslider" id="flslider" tabindex="0" role="slider" aria-label="高度(フライトレベル)" aria-valuemin="120" aria-valuemax="410">
+      <div class="flslider" id="flslider" tabindex="0" role="slider" aria-label="高度(フライトレベル)" aria-valuemin="20" aria-valuemax="410">
         <div class="track"></div><div id="flticks"></div><div class="thumb" id="flthumb">FL300</div>
       </div>
       <div class="flcap"><span id="flhelp">↑↓キー・ドラッグで高度</span><span class="kind" id="flkind">—</span></div>
@@ -239,8 +239,8 @@ details.doc ol,details.doc ul{margin:6px 0 0;padding-left:1.4em;display:flex;fle
         <button type="button" data-v3="south">南から</button><button type="button" data-v3="east">東から</button>
       </span>
       <label>高さの強調 <input type="range" id="exag" min="10" max="100" step="5" value="40"><output id="exagv">×40</output></label>
-      <label>下限 <input type="range" id="flLo" min="120" max="410" step="10" value="120"><output id="flLov">FL120</output></label>
-      <label>上限 <input type="range" id="flHi" min="120" max="410" step="10" value="410"><output id="flHiv">FL410</output></label>
+      <label>下限 <input type="range" id="flLo" min="20" max="410" step="10" value="20"><output id="flLov">FL020</output></label>
+      <label>上限 <input type="range" id="flHi" min="20" max="410" step="10" value="410"><output id="flHiv">FL410</output></label>
       <label>しきい値 <input type="range" id="thr" min="0.5" max="1.6" step="0.1" value="0.8"><output id="thrv">0.8</output></label>
       <label>濃さ <input type="range" id="dens" min="0.3" max="3" step="0.1" value="1"><output id="densv">1.0</output></label>
       <span class="muted">ドラッグで回転・ホイール(2本指)で拡大・右ドラッグ(2本指)で移動</span>
@@ -297,6 +297,7 @@ details.doc ol,details.doc ul{margin:6px 0 0;padding-left:1.4em;display:flex;fle
       <dt>雲頂</dt><dd id="iel">—</dd>
       <dt>雨</dt><dd id="irain">—</dd>
       <dt>上昇流</dt><dd id="iwup">—</dd>
+      <dt>地上風</dt><dd id="iw10">—</dd>
       <dt>氷湿度</dt><dd id="irhi">—</dd>
     </dl>
   </div>
@@ -335,12 +336,13 @@ var CFG=Object.assign({dataBase:'data/',pirepUrl:''},window.TURBMAP_CONFIG||{});
 var qd=new URLSearchParams(location.search).get('data');if(qd) CFG.dataBase=qd.replace(/\/?$/,'/');
 var EL=[
   {k:'mw',nm:'山岳波・重力波',s:'波',c:[123,44,191],cd:[183,124,240],unit:function(s){return 'σw '+(s*0.25).toFixed(2)+' m/s';},on:true},
-  {k:'ii',nm:'慣性不安定',s:'慣性不安定',c:[214,40,40],cd:[255,107,107],unit:function(s){return s<=0?'η/f ≥ 0.25':'η/f '+(0.25-s*0.5).toFixed(2);},on:true},
-  {k:'df',nm:'変形場(TI1)',s:'変形場',c:[224,112,0],cd:[255,163,77],unit:function(s){return 'TI1 '+(s*8).toFixed(1);},on:true},
+  {k:'ii',nm:'慣性不安定',s:'慣性不安定',low:true,c:[214,40,40],cd:[255,107,107],unit:function(s){return s<=0?'η/f ≥ 0.25':'η/f '+(0.25-s*0.5).toFixed(2);},on:true},
+  {k:'df',nm:'変形場(TI1)',s:'変形場',low:true,c:[224,112,0],cd:[255,163,77],unit:function(s){return 'TI1 '+(s*8).toFixed(1);},on:true},
   {k:'ri',nm:'低リチャードソン数',s:'低Ri',c:[31,143,130],cd:[79,209,192],unit:function(s){return s<=0.01?'Ri > 75':'Ri '+(0.75/s).toFixed(2);},on:true},
   {k:'vws',nm:'VWS(参考)',s:'VWS',ref:true,c:[105,115,130],cd:[160,170,185],unit:function(s){return 'VWS '+(s*6).toFixed(1)+' kt/1000ft';},on:false},
   {k:'cv',nm:'対流',s:'対流',cloud:true,c:[0,105,190],cd:[90,170,255],unit:function(s){return '浮力×対流の兆候';},on:true},
-  {k:'mi',nm:'雲中の湿潤不安定',s:'湿潤不安定',cloud:true,c:[150,110,0],cd:[225,185,60],unit:function(s){return isNaN(s)?'データなし(FL300より上)':'湿潤N² −'+(s*6).toFixed(1)+'×10⁻⁵';},on:true}
+  {k:'mi',nm:'雲中の湿潤不安定',s:'湿潤不安定',cloud:true,c:[150,110,0],cd:[225,185,60],unit:function(s){return isNaN(s)?'データなし(FL300より上)':'湿潤N² −'+(s*6).toFixed(1)+'×10⁻⁵';},on:true},
+  {k:'mech',nm:'地表付近の乱れ',s:'地表の乱れ',c:[110,90,60],cd:[200,175,130],unit:function(s){var a=probeAux;return a&&a.w10!=null?'地上風 '+Math.round(a.w10)+' kt(地形・高度で補正)':'地上風×地形';},on:true}
 ];
 var VIEWS=[
   {k:'all',nm:'全域',b:[120,147,22.4,46]},
@@ -351,10 +353,11 @@ var VIEWS=[
 var CAT=[{v:0.5,nm:'弱'},{v:0.8,nm:'並'},{v:1.2,nm:'並〜強'},{v:1.6,nm:'強'}];
 var TL=[[255,224,138],[255,169,77],[232,89,12],[155,17,17]], TD=[[120,100,40],[220,140,50],[255,110,60],[255,70,90]];
 var WD=['日','月','火','水','木','金','土'];
-var FLMIN=120,FLMAX=410;
+var FLMIN=20,FLMAX=410;
 var baseVH=window.innerHeight;   // 地図の大きさを決める画面の高さ(小さな変化では更新しない)
 var TZ=null,IDX=null,M=null,D=null,COAST=[],APTS=[],PIREPS=[];
 var cur={run:null,k:0,fl:300,view:'all',mode:'total',dim:'2d'},withCloud=true,target='total';
+var probeAux=null;
 var probe={active:false,pinned:false,lat:0,lon:0,fl:null,dist:null};
 var metaCache={},dataCache={};
 var $=function(id){return document.getElementById(id);};
@@ -382,7 +385,7 @@ var MW_FLOOR=0.2,MW_NONORO=0.35;
 // 変形場は「独立した揺れの原因」ではなく、モデルが表せない鋭いシアー(低Ri)の補正として使う
 var DF_ALONE=0.5,DF_RI_GAIN=0.5,DF_RI_MAX=1.5;
 function mwHeightFactor(fl){return Math.max(MW_FLOOR,Math.min(1,1-(fl-120)/80*(1-MW_FLOOR)));}
-function totalCore(m,ii,df,ri,vw,cv,mi,fl,zf,o){
+function totalCore(m,ii,df,ri,vw,cv,mi,fl,zf,o,mc){
   var mo=m*zf,mn=m*(1-zf),g=mwHeightFactor(fl);
   // 対流の上昇流・下降流も鉛直流の揺らぎとして現れるので、対流がある場所の重力波の分は対流の一部とみなす(二重計上を防ぐ)
   var cvq=withCloud&&cv>0?Math.min(1,cv/0.8):0;mn*=1-cvq;
@@ -399,6 +402,7 @@ function totalCore(m,ii,df,ri,vw,cv,mi,fl,zf,o){
   var cvv=withCloud&&cv>0?cv:0,miv=withCloud&&mi>0?mi:0;   // NaN(湿度のデータなし)は0
   if(cvv>mx){s2=mx;mx=cvv;dom=5;}else if(cvv>s2){s2=cvv;}
   if(miv>mx){s2=mx;mx=miv;dom=6;}else if(miv>s2){s2=miv;}
+  if(mc>mx){s2=mx;mx=mc;dom=7;}else if(mc>s2){s2=mc;}   // 地表付近の乱れ(機械的)
   var v=mx+0.2*s2,a,N=o?o.notes:null,f2=function(x){return x.toFixed(2);};
   if(o){
     if(m>=0.8&&mo>=mn&&g<0.6) N.push('− 波(地形性)だが高度が高いので単独では割り引き(×'+f2(g)+')');
@@ -424,7 +428,7 @@ function totalCore(m,ii,df,ri,vw,cv,mi,fl,zf,o){
   if(o){o.v=v;o.dom=dom;}
   return v;
 }
-function total(m,ii,df,ri,vw,cv,mi,fl,zf){var o={notes:[],v:0,dom:0};totalCore(m,ii,df,ri,vw,cv,mi,fl,zf,o);return o;}
+function total(m,ii,df,ri,vw,cv,mi,fl,zf,mc){var o={notes:[],v:0,dom:0};totalCore(m,ii,df,ri,vw,cv,mi,fl,zf,o,mc);return o;}
 function totColor(v,dk){
   if(!(v>=0.5)) return null; var S=dk?TD:TL,st=[0.5,0.8,1.2,1.6];
   if(v>=1.6) return {c:S[3],a:0.95};
@@ -433,12 +437,22 @@ function totColor(v,dk){
 }
 function catName(v){var cn='なし';CAT.forEach(function(c){if(v>=c.v) cn=c.nm;});return cn;}
 
+/* 地表付近の乱れ(機械的):地上風25ktで1、地形の近くは強め。FL010以下で全量、FL050で0 */
+var MECH_KT=25;
+function lowFactor(f){return Math.max(0,Math.min(1,(f-60)/60));}
+function mechField(f){
+  var N=M.nx*M.ny,out=new Float32Array(N),i=M.aux?M.aux.indexOf('wind10'):-1;if(i<0) return out;
+  var wgt=Math.max(0,Math.min(1,(50-f)/40));if(!(wgt>0)) return out;
+  var base=M.layers.length*M.elems.length*N,sc=M.aux_scale[i];
+  for(var k=0;k<N;k++) out[k]=D[base+i*N+k]*sc/MECH_KT*(0.7+0.6*zfAt(k))*wgt;
+  return out;
+}
 /* 地形の影響圏(terrain.png)。無いとき・格子が合わないときは、すべて地形性として扱う */
 function zfAt(k){return TZ&&TZ.length===M.nx*M.ny?TZ[k]:1;}
 /* 補助の量(CAPE・雲頂・雨・上昇流)。数値データの末尾にある2次元の量 */
 function auxAt(k){
-  if(!M||!M.aux||!D) return null;var N=M.nx*M.ny,base=M.layers.length*M.elems.length*N,g=function(nm){var i=M.aux.indexOf(nm);return D[base+i*N+k]*M.aux_scale[i];};
-  return {cape:g('cape'),el:g('el_fl'),rain:g('rain'),wup:g('wup')};
+  if(!M||!M.aux||!D) return null;var N=M.nx*M.ny,base=M.layers.length*M.elems.length*N,g=function(nm){var i=M.aux.indexOf(nm);return i<0?null:D[base+i*N+k]*M.aux_scale[i];};
+  return {cape:g('cape'),el:g('el_fl'),rain:g('rain'),wup:g('wup'),w10:g('wind10')};
 }
 
 /* ===== データ読み込み ===== */
@@ -461,6 +475,8 @@ function fail(e){busy(true);$('loading').innerHTML='<span class="err">データ�
 /* 値の取り出し(高度方向の補間) */
 function field(ek,flv){
   var mf=M.mid_fl,f=(flv==null?cur.fl:flv),l0=0,w=0,L=M.layers.length,E=M.elems.length,N=M.nx*M.ny,e=M.elems.indexOf(ek);
+  if(ek==='mech') return mechField(f);
+  if(f<mf[0]-12) return new Float32Array(N).fill(NaN);   // 旧形式のデータ(FL120より下の層がない)
   if(e<0) return new Float32Array(N);   // 古い形式のデータには無い要素
   if((M.missing_elems||['rhi']).indexOf(ek)>=0){ // 湿度を使う要素は、300hPa(約FL300)までしか無い
     var lv=M.rhi_valid_layers,out=new Float32Array(N).fill(NaN);
@@ -474,7 +490,10 @@ function field(ek,flv){
   if(f<=mf[0]){l0=0;w=0;}else if(f>=mf[L-1]){l0=L-2;w=1;}
   else{for(var i=0;i<L-1;i++){if(f>=mf[i]&&f<=mf[i+1]){l0=i;w=(f-mf[i])/(mf[i+1]-mf[i]);break;}}}
   var a=(l0*E+e)*N,b=((l0+1)*E+e)*N,out2=new Float32Array(N);
-  for(var k=0;k<N;k++) out2[k]=(D[a+k]*(1-w)+D[b+k]*w)/100;
+  // 慣性不安定と変形場は上空の自由大気のための指標。地表に近い層では、摩擦・海岸線・地形のため
+  // 水平の風の差が大きく出て意味が薄いので、FL060以下では評価せず、FL060〜120で徐々に効かせる
+  var lf=(ek==='ii'||ek==='df')?lowFactor(f):1;
+  for(var k=0;k<N;k++) out2[k]=(D[a+k]*(1-w)+D[b+k]*w)/100*lf;
   return out2;
 }
 var fcache={key:'',f:{},n:0};
@@ -568,7 +587,7 @@ function selectRun(init,k){
   busy(true,'データを読み込んでいます');
   return loadRun(init).then(function(m){cur.run=init;M=m;$('run').value=init;
     var j=jstp(m.init_iso);
-    $('runinfo').textContent='MSM '+m.init_iso.replace('T',' ')+'(日本時間 '+j.mo+'/'+j.d+' '+pad(j.h,2)+'時)初期値 · 作成 '+m.generated.slice(5).replace('T',' ')+(m.elems.indexOf('cv')<0?' · 旧形式(揺れる雲なし)':'');
+    $('runinfo').textContent='MSM '+m.init_iso.replace('T',' ')+'(日本時間 '+j.mo+'/'+j.d+' '+pad(j.h,2)+'時)初期値 · 作成 '+m.generated.slice(5).replace('T',' ')+(m.elems.indexOf('cv')<0?' · 旧形式(揺れる雲なし)':'')+(m.mid_fl[0]>100?' · 旧形式(FL120より下なし)':'');
     buildTimeChips();layout();buildFlTicks();return selectTime(k==null?nearestNow(m):Math.min(k,m.valid.length-1));
   }).catch(fail);
 }
@@ -629,7 +648,7 @@ function draw2d(){
   var fa=fieldsAt(cur.fl),F=fa.F;
   for(var k=0;k<n;k++){
     var r=bg[0],g=bg[1],b=bg[2];
-    if(cur.mode==='total'){var tc=totColor(totalCore(F.mw[k],F.ii[k],F.df[k],F.ri[k],F.vws[k],F.cv[k],F.mi[k],cur.fl,zfAt(k),null),dk);
+    if(cur.mode==='total'){var tc=totColor(totalCore(F.mw[k],F.ii[k],F.df[k],F.ri[k],F.vws[k],F.cv[k],F.mi[k],cur.fl,zfAt(k),null,F.mech[k]),dk);
       if(tc){r=r*(1-tc.a)+tc.c[0]*tc.a;g=g*(1-tc.a)+tc.c[1]*tc.a;b=b*(1-tc.a)+tc.c[2]*tc.a;}}
     else{for(var i=0;i<EL.length;i++){var e=EL[i];if(!e.on) continue;
       var a=Math.max(0,Math.min(1,(F[e.k][k]-0.5)/1.1))*0.92;if(!(a>0)) continue;   // 0.5(弱)から色を付ける。NaNは塗らない
@@ -714,26 +733,27 @@ function renderInfo(){
   st.textContent=!probe.active?'—':probe.pinned?'📌 固定中':probe.dist!=null?'断面上':'カーソル';
   st.classList.toggle('pin',probe.pinned);$('iunpin').disabled=!probe.pinned;
   var k=probe.active&&M&&D?gridIndex(probe.lat,probe.lon):-1;
-  if(k<0){['ipos','ifl','itime','idist','itot','icat','idom','icape','iel','irain','iwup','irhi'].forEach(function(id){setText(id,'—');});
+  if(k<0){['ipos','ifl','itime','idist','itot','icat','idom','icape','iel','irain','iwup','iw10','irhi'].forEach(function(id){setText(id,'—');});
     $('itbar').style.width='0';$('icombo').textContent='—';
     EL.forEach(function(e){var r=$('ie_'+e.k);r.querySelector('.v').textContent='—';r.querySelector('.vbar i').style.width='0';r.querySelector('.u').textContent='—';});return;}
   var fl=probe.fl==null?cur.fl:probe.fl,fa=fieldsAt(fl),F=fa.F;
-  var t=total(F.mw[k],F.ii[k],F.df[k],F.ri[k],F.vws[k],F.cv[k],F.mi[k],fl,zfAt(k)),j=jstp(M.valid[cur.k]);
+  probeAux=auxAt(k);var t=total(F.mw[k],F.ii[k],F.df[k],F.ri[k],F.vws[k],F.cv[k],F.mi[k],fl,zfAt(k),F.mech[k]),j=jstp(M.valid[cur.k]);
   setText('ipos',fmtLat(probe.lat)+' '+fmtLon(probe.lon));
   setText('ifl','FL'+pad(fl,3)+(probe.fl!=null&&probe.fl!==cur.fl?'(地図はFL'+pad(cur.fl,3)+')':''));
   setText('itime',j.mo+'/'+j.d+' '+pad(j.h,2)+'時 FT'+pad(M.ft[cur.k],2));
   setText('idist',probe.dist!=null?'始点から '+pad(Math.round(probe.dist),4).replace(/^0+(?=\d)/,function(m){return m.replace(/0/g,' ');})+' km':'—');
-  setText('itot',t.v.toFixed(2));setText('icat',catName(t.v));
-  var tc=totColor(t.v,dark());$('itbar').style.width=Math.min(100,t.v/2.5*100)+'%';$('itbar').style.background=tc?rgb(tc.c):'var(--line)';
+  var nod=isNaN(t.v);setText('itot',nod?'—':t.v.toFixed(2));setText('icat',nod?'データなし':catName(t.v));
+  var tc=totColor(t.v,dark());$('itbar').style.width=(nod?0:Math.min(100,t.v/2.5*100))+'%';$('itbar').style.background=tc?rgb(tc.c):'var(--line)';
   setText('idom',t.v>=0.5?(EL[t.dom]||EL[0]).nm:'—');
   EL.forEach(function(e){var r=$('ie_'+e.k),s=F[e.k][k],has=M.elems.indexOf(e.k)>=0;
+    if(e.k==='mech') has=!!(M.aux&&M.aux.indexOf('wind10')>=0);
     r.querySelector('.v').textContent=!has||isNaN(s)?'—':s.toFixed(2);
     r.querySelector('.vbar i').style.width=(!has||isNaN(s)?0:Math.min(100,s/2.5*100))+'%';
-    r.querySelector('.u').textContent=!has?'この初期値にはありません':e.unit(s);});
+    r.querySelector('.u').textContent=!has?'この初期値にはありません':(e.low&&fl<120?(fl<=60?'FL060以下は評価しない':'低い高度なので弱めに評価'):e.unit(s));});
   var ax=auxAt(k);
   if(ax&&M.aux){setText('icape',pad(Math.round(ax.cape),4).replace(/^0+(?=\d)/,function(m){return m.replace(/0/g,' ');})+' J/kg');
-    setText('iel',ax.el>0?'FL'+pad(Math.round(ax.el/10)*10,3):'—');setText('irain',ax.rain.toFixed(1)+' mm/h');setText('iwup',ax.wup.toFixed(1)+' m/s');}
-  else ['icape','iel','irain','iwup'].forEach(function(id){setText(id,'—');});
+    setText('iel',ax.el>0?'FL'+pad(Math.round(ax.el/10)*10,3):'—');setText('irain',ax.rain.toFixed(1)+' mm/h');setText('iwup',ax.wup.toFixed(1)+' m/s');setText('iw10',ax.w10!=null?Math.round(ax.w10)+' kt':'—');}
+  else ['icape','iel','irain','iwup','iw10'].forEach(function(id){setText(id,'—');});
   var rh=fa.rh[k];setText('irhi',isNaN(rh)?'データなし(FL300より上)':Math.round(rh*100)+' %');
   if(ax&&withCloud&&ax.rain>=3&&ax.cape<100) t.notes.push('− 雨はあるが浮力がない層状の雲(雲による揺れは小さい)');
   $('icombo').innerHTML=t.notes.length?t.notes.map(function(s){return '<div'+(s[0]==='+'?' class="plus"':'')+'>'+s+'</div>';}).join(''):'—';
@@ -758,7 +778,7 @@ stage.addEventListener('click',function(ev){
 
 /* ===== 3D ===== */
 var FLS=[];for(var f0=FLMIN;f0<=FLMAX;f0+=10) FLS.push(f0);
-var TARGETS=[{k:'total',nm:'総合'},{k:'mw',nm:'山岳波・重力波'},{k:'ii',nm:'慣性不安定'},{k:'df',nm:'変形場'},{k:'ri',nm:'低リチャードソン数'},{k:'vws',nm:'VWS'},{k:'cv',nm:'対流'},{k:'mi',nm:'雲中の湿潤不安定'}];
+var TARGETS=[{k:'total',nm:'総合'},{k:'mw',nm:'山岳波・重力波'},{k:'ii',nm:'慣性不安定'},{k:'df',nm:'変形場'},{k:'ri',nm:'低リチャードソン数'},{k:'vws',nm:'VWS'},{k:'cv',nm:'対流'},{k:'mi',nm:'雲中の湿潤不安定'},{k:'mech',nm:'地表付近の乱れ'}];
 var volCache={key:'',vol:null};
 ['target','target3'].forEach(function(id){TARGETS.forEach(function(t){var o=document.createElement('option');o.value=t.k;o.textContent=t.nm;$(id).appendChild(o);});
   $(id).addEventListener('change',function(){target=$(id).value;$('target').value=target;$('target3').value=target;saveUI();draw();});});
@@ -767,8 +787,8 @@ function buildVolume(){
   var N=M.nx*M.ny,nz=FLS.length,vol=new Float32Array(N*nz);
   for(var z=0;z<nz;z++){
     var fl=FLS[z],o=z*N;
-    if(target==='total'){var F={};['mw','ii','df','ri','vws','cv','mi'].forEach(function(k){F[k]=field(k,fl);});
-      for(var k2=0;k2<N;k2++) vol[o+k2]=totalCore(F.mw[k2],F.ii[k2],F.df[k2],F.ri[k2],F.vws[k2],F.cv[k2],F.mi[k2],fl,zfAt(k2),null);}
+    if(target==='total'){var F={};['mw','ii','df','ri','vws','cv','mi','mech'].forEach(function(k){F[k]=field(k,fl);});
+      for(var k2=0;k2<N;k2++) vol[o+k2]=totalCore(F.mw[k2],F.ii[k2],F.df[k2],F.ri[k2],F.vws[k2],F.cv[k2],F.mi[k2],fl,zfAt(k2),null,F.mech[k2]);}
     else vol.set(field(target,fl),o);
   }
   volCache={key:key,vol:vol};return vol;
@@ -912,7 +932,7 @@ function updateSec(){
   ctx.setTransform(dpr,0,0,dpr,0,0);
   var fg=css('--fg'),mu=css('--muted'),ln=css('--line'),pc=css('--path');ctx.font='11px '+css('--mono');ctx.textBaseline='middle';
   ctx.strokeStyle=ln;ctx.fillStyle=mu;ctx.lineWidth=1;
-  for(var fl2=150;fl2<=400;fl2+=50){var y=T+(flMax-fl2)/(flMax-flMin)*ph;ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(L+pw,y);ctx.setLineDash([3,4]);ctx.stroke();ctx.setLineDash([]);ctx.textAlign='right';ctx.fillText('FL'+fl2,L-6,y);}
+  for(var fl2=50;fl2<=400;fl2+=50){var y=T+(flMax-fl2)/(flMax-flMin)*ph;ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(L+pw,y);ctx.setLineDash([3,4]);ctx.stroke();ctx.setLineDash([]);ctx.textAlign='right';ctx.fillText('FL'+fl2,L-6,y);}
   var step=path.total>1500?500:path.total>600?200:path.total>250?100:50;
   for(var km=0;km<=path.total;km+=step){var x=L+km/path.total*pw;ctx.beginPath();ctx.moveTo(x,T+ph);ctx.lineTo(x,T+ph+4);ctx.strokeStyle=mu;ctx.stroke();ctx.textAlign=x>L+pw-24?'right':'center';ctx.fillText(km+'km',x,T+ph+13);}
   // 点(A,B,…)は上端に

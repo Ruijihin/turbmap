@@ -135,6 +135,13 @@ class MsmSurfaceFile:
         r = maximum_filter(r, size=5)              # 地上ファイルは約5km格子
         return r[::2, ::2]
 
+    def wind10_max(self, hour):
+        """地上10mの風速(kt)。前後1時間の最大を、周囲約15kmの最大で広げる。"""
+        its = [self.hours.index(h) for h in (hour, hour + 1) if h in self.hours]
+        w = np.max([np.hypot(self._rd("u", i), self._rd("v", i)) for i in its], axis=0) * 1.94384
+        w = maximum_filter(w, size=3)
+        return w[::2, ::2]
+
     def close(self):
         self.f.close()
 
