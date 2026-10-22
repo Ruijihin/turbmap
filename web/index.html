@@ -130,6 +130,12 @@ select{padding:6px 8px;border:1px solid var(--line);background:var(--surface);bo
 .bar3 output{font-family:var(--mono);width:3.6em;display:inline-block}
 
 /* 断面 */
+.routebar{background:var(--soft)}
+.rsel{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;color:var(--muted)}
+.rsel select{min-width:9.5em;color:var(--fg)}
+#rq{font:inherit;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--fg);min-height:36px;width:15em;max-width:100%}
+.rrecent{display:inline-flex;flex-wrap:wrap;gap:4px}
+.rrecent button{border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:3px 10px;min-height:30px;font-size:.78rem;cursor:pointer;font-family:var(--mono)}
 .secpath{flex:1 1 20em;min-width:0;font-size:.8rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .secbody{position:relative;padding:6px 8px 4px}
 .secbody canvas{display:block;width:100%;height:330px}
@@ -262,11 +268,24 @@ details.doc ol,details.doc ul{margin:6px 0 0;padding-left:1.4em;display:flex;fle
   <section class="card" id="seccard" aria-label="鉛直断面">
     <div class="bar">
       <span class="ctitle">鉛直断面</span>
+      <div class="seg" role="group" aria-label="断面の作り方">
+        <button type="button" data-sm="free" aria-pressed="true">任意</button>
+        <button type="button" data-sm="route" aria-pressed="false">ルート</button>
+      </div>
+      <span id="secfree" style="display:contents">
       <button type="button" class="btn" id="secbtn" aria-pressed="false">断面を作る</button>
       <button type="button" class="btn" id="secundo">1点戻す</button>
       <button type="button" class="btn" id="secclear">消す</button>
+      </span>
       <label class="muted" style="font-size:.8rem">対象 <select id="target" aria-label="断面の対象"></select></label>
       <span class="secpath" id="secpath">—</span>
+    </div>
+    <div class="bar routebar" id="secroute" hidden>
+      <label class="rsel">出発 <select id="rdep" aria-label="出発空港"></select></label>
+      <button type="button" class="btn" id="rswap" title="出発と到着を入れ替える" aria-label="出発と到着を入れ替える">⇄</button>
+      <label class="rsel">到着 <select id="rarr" aria-label="到着空港"></select></label>
+      <input type="search" id="rq" placeholder="検索 例:hnd cts / 羽田 千歳" aria-label="ルートを検索" autocomplete="off">
+      <span class="rrecent" id="rrecent" aria-label="最近使ったルート"></span>
     </div>
     <div class="secbody">
       <div class="secempty" id="secempty">「断面を作る」を押し、地図で通りたい点を2点以上クリックします(最大8点、Escで終了)。</div>
@@ -376,10 +395,10 @@ function fmtLon(v){return v.toFixed(2)+'°E';}
 
 /* 設定の記憶(このブラウザだけ) */
 var SKEY='turbmap.ui.v2';
-function saveUI(){try{localStorage.setItem(SKEY,JSON.stringify({fl:cur.fl,view:cur.view,mode:cur.mode,scope:withCloud,target:target,apt:$('apt').checked,vwsl:$('vwsl').checked,on:EL.map(function(e){return e.on;})}));}catch(e){}}
+function saveUI(){try{localStorage.setItem(SKEY,JSON.stringify({fl:cur.fl,view:cur.view,mode:cur.mode,scope:withCloud,target:target,apt:$('apt').checked,vwsl:$('vwsl').checked,secMode:secMode,on:EL.map(function(e){return e.on;})}));}catch(e){}}
 function loadUI(){try{var s=JSON.parse(localStorage.getItem(SKEY)||'null');if(!s) return;
   if(s.fl>=FLMIN&&s.fl<=FLMAX) cur.fl=s.fl; if(s.view) cur.view=s.view; if(s.mode) cur.mode=s.mode; if(s.scope!=null) withCloud=s.scope;
-  if(s.target) target=s.target; if(s.apt!=null) $('apt').checked=s.apt; if(s.vwsl!=null) $('vwsl').checked=s.vwsl; if(s.on&&s.on.length===EL.length) EL.forEach(function(e,i){e.on=!!s.on[i];});}catch(e){}}
+  if(s.target) target=s.target; if(s.apt!=null) $('apt').checked=s.apt; if(s.vwsl!=null) $('vwsl').checked=s.vwsl; if(s.secMode) secMode=s.secMode; if(s.on&&s.on.length===EL.length) EL.forEach(function(e,i){e.on=!!s.on[i];});}catch(e){}}
 
 /* ===== 総合:組み合わせを考慮した揺れやすさ(1.0=並) ===== */
 var MW_FLOOR=0.2,MW_NONORO=0.35;
@@ -690,7 +709,8 @@ function drawOverlay(){
     drawVwsLines(o,function(i,j){var v=vw[j*nx+i];return v>0?v:NaN;},M.nx,M.ny,function(i,j){return [X(M.lon0+i*M.dlon),Y(M.lat0+j*M.dlat)];},dpr);
   }
   drawPireps(o,dpr);
-  if(sec.pts.length){
+  if(sec.route&&sec.pts.length) drawRouteOverlay(o,dpr);
+  else if(sec.pts.length){
     o.strokeStyle=css('--path');o.fillStyle=css('--path');o.lineWidth=2.5*dpr;o.beginPath();
     sec.pts.forEach(function(p,i){var x=X(p[0]),y=Y(p[1]);i?o.lineTo(x,y):o.moveTo(x,y);});o.stroke();
     o.font='bold '+(13*dpr)+'px '+css('--font');
@@ -724,6 +744,22 @@ function drawVwsLines(o,Z,ni,nj,toXY,scale){
     o.strokeStyle=vwsColor();o.lineWidth=L.w*scale;o.stroke();
   });
   o.setLineDash([]);
+}
+/* 定義ルートの描画:区間ごとに線(近似区間は点線)、地点の点、地点名(重ならないよう間引く) */
+function drawRouteOverlay(o,dpr){
+  var pc=css('--path'),n=sec.pts.length,i;
+  o.strokeStyle=pc;o.lineWidth=2.5*dpr;
+  for(i=1;i<n;i++){o.setLineDash(sec.approx[i]?[6*dpr,5*dpr]:[]);o.beginPath();o.moveTo(X(sec.pts[i-1][0]),Y(sec.pts[i-1][1]));o.lineTo(X(sec.pts[i][0]),Y(sec.pts[i][1]));o.stroke();}
+  o.setLineDash([]);o.fillStyle=pc;
+  for(i=0;i<n;i++){var x=X(sec.pts[i][0]),y=Y(sec.pts[i][1]),end=i===0||i===n-1;o.beginPath();o.arc(x,y,(end?4.5:2.6)*dpr,0,7);o.fill();}
+  // 地点名:端は必ず、途中は前に描いた名前から離れているときだけ
+  o.font=(10*dpr)+'px '+css('--mono');o.textBaseline='middle';var drawn=[],halo=css('--surface');
+  var order=[0,n-1];for(i=1;i<n-1;i++) order.push(i);
+  order.forEach(function(k){var x=X(sec.pts[k][0]),y=Y(sec.pts[k][1]),end=k===0||k===n-1;
+    if(x<0||y<0||x>P.W||y>P.H) return;
+    if(!end&&drawn.some(function(d){return Math.abs(d[0]-x)<46*dpr&&Math.abs(d[1]-y)<14*dpr;})) return;
+    drawn.push([x,y]);var t=sec.names[k];o.lineWidth=3*dpr;o.strokeStyle=halo;o.strokeText(t,x+5*dpr,y-6*dpr);o.fillStyle=pc;o.fillText(t,x+5*dpr,y-6*dpr);});
+  o.textBaseline='alphabetic';
 }
 /* 地点の印(ホバー・固定・断面の位置)と、断面作成中の仮の線 */
 var hoverLL=null;
@@ -858,7 +894,7 @@ function groundCanvas(){
   COAST.forEach(function(p){o.beginPath();p.forEach(function(q,i){var x=gx(q[0]),y=gy(q[1]);i?o.lineTo(x,y):o.moveTo(x,y);});o.stroke();});
   if($('apt').checked){o.font='20px monospace';APTS.forEach(function(a){o.fillStyle=dk?'#c3ccd6':'#3b4654';o.beginPath();o.arc(gx(a.lon),gy(a.lat),5,0,7);o.fill();o.fillText(a.code,gx(a.lon)+8,gy(a.lat)+6);});}
   if(sec.pts.length){o.strokeStyle='#d6008c';o.lineWidth=5;o.beginPath();sec.pts.forEach(function(p,i){i?o.lineTo(gx(p[0]),gy(p[1])):o.moveTo(gx(p[0]),gy(p[1]));});o.stroke();
-    o.font='bold 30px sans-serif';sec.pts.forEach(function(p,i){o.fillStyle='#d6008c';o.beginPath();o.arc(gx(p[0]),gy(p[1]),9,0,7);o.fill();o.fillText(SECLET[i],gx(p[0])+12,gy(p[1])-10);});}
+    o.font='bold 30px sans-serif';sec.pts.forEach(function(p,i){if(sec.route&&i>0&&i<sec.pts.length-1) return;o.fillStyle='#d6008c';o.beginPath();o.arc(gx(p[0]),gy(p[1]),9,0,7);o.fill();o.fillText(sec.route?sec.names[i]:SECLET[i],gx(p[0])+12,gy(p[1])-10);});}
   return c;
 }
 function setDim(d){
@@ -879,14 +915,17 @@ $('flLo').addEventListener('input',function(){if(+$('flLo').value>+$('flHi').val
 $('flHi').addEventListener('input',function(){if(+$('flHi').value<+$('flLo').value) $('flLo').value=$('flHi').value;opts3d();});
 
 /* ===== 鉛直断面 ===== */
-var sec={on:false,pts:[]},secGeom=null,SECLET='ABCDEFGH';
+var sec={on:false,pts:[],route:null,names:null,approx:null},secGeom=null,SECLET='ABCDEFGH',secMode='free',ROUTES=null;
 function kmBetween(a,b){var dy=(b[1]-a[1])*111.2,dx=(b[0]-a[0])*111.2*Math.cos((a[1]+b[1])/2*Math.PI/180);return Math.sqrt(dx*dx+dy*dy);}
 function secUI(){
   $('secbtn').setAttribute('aria-pressed',sec.on?'true':'false');$('secbtn').textContent=sec.on?'作成を終える':'断面を作る';
   $('secundo').disabled=!sec.pts.length;$('secclear').disabled=!sec.pts.length&&!sec.on;
   stage.style.cursor=sec.on?'crosshair':'';
   var t;
-  if(sec.pts.length<2) t=sec.on?'地図をクリックして、通りたい点を指定してください(あと'+(2-sec.pts.length)+'点以上・最大8点)':'—';
+  if(sec.route){var r=sec.route,d2=0;for(var q=1;q<sec.pts.length;q++) d2+=kmBetween(sec.pts[q-1],sec.pts[q]);
+    var ap=sec.approx.some(function(x){return x;});
+    t=r.str+' · 全長 '+Math.round(d2)+'km · 地点 '+sec.pts.length+(ap?' · 点線は近似(座標不明の地点を直線で補った区間)':'')+(secFlip()?' · 西向き(0kmは右)':'');}
+  else if(sec.pts.length<2) t=sec.on?'地図をクリックして、通りたい点を指定してください(あと'+(2-sec.pts.length)+'点以上・最大8点)':'—';
   else{var d=0;for(var i=1;i<sec.pts.length;i++) d+=kmBetween(sec.pts[i-1],sec.pts[i]);
     t=sec.pts.map(function(p,i){return SECLET[i]+' '+p[1].toFixed(1)+'N '+p[0].toFixed(1)+'E';}).join(' → ')+' · 全長 '+Math.round(d)+'km'+(secFlip()?' · 西向き(0kmは右)':'')+(sec.on?' · クリックで点を追加':'');}
   $('secpath').textContent=t;$('secpath').title=t;
@@ -895,6 +934,80 @@ function secChanged(){secKey='';secUI();drawOverlay();if(cur.dim==='3d'&&V3) V3.
 $('secbtn').addEventListener('click',function(){sec.on=!sec.on;if(sec.on&&cur.dim==='3d') setDim('2d');secUI();drawProbe();});
 $('secundo').addEventListener('click',function(){sec.pts.pop();if(probe.dist!=null) probe.active=false;secChanged();renderInfo();});
 $('secclear').addEventListener('click',function(){sec.pts=[];sec.on=false;if(probe.dist!=null) probe.active=false;secChanged();renderInfo();drawProbe();});
+/* ===== 定義ルート ===== */
+var RKEY='turbmap.recent.v1';
+function recents(){try{return JSON.parse(localStorage.getItem(RKEY)||'[]');}catch(e){return [];}}
+function pushRecent(k){var r=recents().filter(function(x){return x!==k;});r.unshift(k);r=r.slice(0,5);try{localStorage.setItem(RKEY,JSON.stringify(r));}catch(e){}paintRecent();}
+function aptLbl(c){var a=ROUTES&&ROUTES.airports[c];return a?a.iata+' '+a.name:c;}
+function findRoute(d,a){return ROUTES?ROUTES.routes.filter(function(r){return r.dep===d&&r.arr===a;})[0]:null;}
+function aptRank(c){return /^R[JO]/.test(c)?0:/^R[CK]/.test(c)?1:2;}   // 国内 → 台湾・韓国 → その他
+function sortApt(a,b){return aptRank(a)-aptRank(b)||aptLbl(a).localeCompare(aptLbl(b),'ja');}
+function fillArr(dep,keep){
+  var arrs=ROUTES.routes.filter(function(r){return r.dep===dep;}).map(function(r){return r.arr;}).sort(sortApt),s=$('rarr');
+  s.innerHTML=arrs.map(function(c){return '<option value="'+c+'">'+aptLbl(c)+' ('+c+')</option>';}).join('');
+  if(keep&&arrs.indexOf(keep)>=0) s.value=keep;
+}
+function buildRouteUI(){
+  var deps={};ROUTES.routes.forEach(function(r){deps[r.dep]=1;});
+  $('rdep').innerHTML=Object.keys(deps).sort(sortApt).map(function(c){return '<option value="'+c+'">'+aptLbl(c)+' ('+c+')</option>';}).join('');
+  paintRecent();
+}
+function paintRecent(){
+  if(!ROUTES) return;
+  $('rrecent').innerHTML=recents().filter(function(k){var p=k.split('-');return findRoute(p[0],p[1]);}).map(function(k){var p=k.split('-');
+    return '<button type="button" data-rk="'+k+'" title="'+aptLbl(p[0])+' → '+aptLbl(p[1])+'">'+(ROUTES.airports[p[0]]||{iata:p[0]}).iata+'→'+(ROUTES.airports[p[1]]||{iata:p[1]}).iata+'</button>';}).join('');
+  $('rrecent').querySelectorAll('[data-rk]').forEach(function(b){b.addEventListener('click',function(){var p=b.dataset.rk.split('-');selectRoute(p[0],p[1]);});});
+}
+function selectRoute(dep,arr){
+  if(!findRoute(dep,arr)) return;
+  $('rdep').value=dep;fillArr(dep,arr);applyRoute();
+}
+function applyRoute(auto){
+  var r=findRoute($('rdep').value,$('rarr').value);if(!r) return;
+  sec.route=r;sec.pts=r.pts.map(function(p){return [p[1],p[2]];});sec.names=r.pts.map(function(p){return p[0];});sec.approx=r.pts.map(function(p){return !!p[3];});
+  sec.on=false;if(probe.dist!=null) probe.active=false;
+  $('rswap').disabled=!findRoute(r.arr,r.dep);
+  if(auto!==true) pushRecent(r.dep+'-'+r.arr);   // 自動で選んだときは「最近使ったルート」に入れない
+  secChanged();renderInfo();
+}
+function loadRoutes(){
+  if(ROUTES) return Promise.resolve(ROUTES);
+  return getJSON(CFG.dataBase+'routes/routes.json').then(function(d){ROUTES=d;buildRouteUI();return d;});
+}
+function setSecMode(m){
+  secMode=m;document.querySelectorAll('[data-sm]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.sm===m?'true':'false');});
+  $('secfree').style.display=m==='free'?'contents':'none';$('secroute').hidden=m!=='route';
+  sec.on=false;sec.route=null;sec.names=null;sec.approx=null;sec.pts=[];if(probe.dist!=null) probe.active=false;
+  if(m==='route'){
+    $('secempty').textContent='ルートのデータを読み込んでいます';
+    loadRoutes().then(function(){var rc=recents()[0],p=rc?rc.split('-'):null;
+      if(p&&findRoute(p[0],p[1])) selectRoute(p[0],p[1]);else{var d0=findRoute('RJTT','RJCC')?'RJTT':$('rdep').value;$('rdep').value=d0;fillArr(d0);applyRoute(true);}
+    }).catch(function(e){$('secempty').textContent='ルートのデータを読み込めませんでした('+(e&&e.message||e)+')';});
+  }else $('secempty').textContent='「断面を作る」を押し、地図で通りたい点を2点以上クリックします(最大8点、Escで終了)。';
+  saveUI();secChanged();renderInfo();
+}
+document.querySelectorAll('[data-sm]').forEach(function(b){b.addEventListener('click',function(){if(b.dataset.sm!==secMode) setSecMode(b.dataset.sm);});});
+$('rdep').addEventListener('change',function(){fillArr($('rdep').value);applyRoute();});
+$('rarr').addEventListener('change',function(){applyRoute();});
+$('rswap').addEventListener('click',function(){if(sec.route) selectRoute(sec.route.arr,sec.route.dep);});
+function matchApt(tok){
+  tok=tok.trim().toUpperCase();if(!tok||!ROUTES) return [];
+  return Object.keys(ROUTES.airports).filter(function(c){var a=ROUTES.airports[c];return c===tok||a.iata===tok||a.name.toUpperCase().indexOf(tok)>=0||(tok.length>=2&&c.indexOf(tok)===0);});
+}
+// 「hnd cts」「羽田 千歳」「RJTT RJCC」「HND→CTS」のどれでも探す。1語なら出発空港だけを選ぶ
+function searchRoute(){
+  var t=$('rq').value.trim().split(/[\s,→>\-]+/).filter(Boolean);if(!t.length) return;
+  var A=matchApt(t[0]),B=t[1]?matchApt(t[1]):null;
+  for(var i=0;i<A.length;i++){
+    if(!B){var r0=ROUTES.routes.filter(function(r){return r.dep===A[i];})[0];if(r0){selectRoute(A[i],(findRoute(A[i],$('rarr').value)?$('rarr').value:r0.arr));$('rq').setCustomValidity('');return;}}
+    else for(var j=0;j<B.length;j++) if(findRoute(A[i],B[j])){selectRoute(A[i],B[j]);$('rq').setCustomValidity('');return;}
+  }
+  $('rq').setCustomValidity('ルートが見つかりません');$('rq').reportValidity();
+}
+$('rq').addEventListener('keydown',function(ev){if(ev.key==='Enter'){ev.preventDefault();searchRoute();}});
+$('rq').addEventListener('change',searchRoute);
+$('rq').addEventListener('input',function(){$('rq').setCustomValidity('');});
+
 function samplePath(){
   var cum=[0],i;for(i=1;i<sec.pts.length;i++) cum.push(cum[i-1]+kmBetween(sec.pts[i-1],sec.pts[i]));
   var tot=cum[cum.length-1],n=Math.min(700,Math.max(2,Math.ceil(tot/8)+1)),lon=new Float32Array(n),lat=new Float32Array(n),seg=0;
@@ -986,8 +1099,17 @@ function updateSec(){
   for(var km=0;km<=path.total;km+=step){var x=XD(km);ctx.beginPath();ctx.moveTo(x,T+ph);ctx.lineTo(x,T+ph+4);ctx.strokeStyle=mu;ctx.stroke();ctx.textAlign=AL(x);ctx.fillText(km+'km',x,T+ph+13);}
   // 点(A,B,…)は上端に
   ctx.strokeStyle=pc;ctx.fillStyle=pc;ctx.setLineDash([5,4]);ctx.font='bold 12px '+css('--font');
+  if(sec.route){   // 定義ルート:上端に短い目盛りと地点名(重ならないよう間引く。両端は必ず)
+    ctx.setLineDash([]);ctx.font='10px '+css('--mono');ctx.textBaseline='middle';var used=[],halo=css('--surface'),nn=path.cum.length;
+    var ord=[0,nn-1];for(var q2=1;q2<nn-1;q2++) ord.push(q2);
+    ord.forEach(function(k){var x=XD(path.cum[k]);ctx.strokeStyle=pc;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,T);ctx.lineTo(x,T+6);ctx.stroke();
+      var end=k===0||k===nn-1;if(!end&&used.some(function(u){return Math.abs(u-x)<40;})) return;used.push(x);
+      var al=AL(x),tx=x+(al==='left'?3:al==='right'?-3:0);ctx.textAlign=al;ctx.lineWidth=3;ctx.strokeStyle=halo;ctx.strokeText(sec.names[k],tx,T+14);ctx.fillStyle=pc;ctx.fillText(sec.names[k],tx,T+14);});
+    ctx.lineWidth=1;
+  }else{
   path.cum.forEach(function(d,k){var x=XD(d);ctx.beginPath();ctx.moveTo(x,T);ctx.lineTo(x,T+ph);ctx.stroke();
     var al=AL(x);ctx.textAlign=al;ctx.fillText(SECLET[k],x+(al==='left'?3:al==='right'?-3:0),T-10);});
+  }
   ctx.setLineDash([]);ctx.strokeStyle=ln;ctx.strokeRect(L,T,pw,ph);
   // 空港のアビーム(下の段)
   var ab=abeams(path),ya=T+ph+30;
@@ -1074,7 +1196,7 @@ Promise.all([getJSON(CFG.dataBase+'index.json'),getJSON('coast.json'),
   var sel=$('run');
   IDX.runs.forEach(function(r,i){var o=document.createElement('option');var j=jstp(r.init_iso);
     o.value=r.init;o.textContent=r.init_iso.slice(5,16).replace('T',' ')+'Z(日本 '+j.mo+'/'+j.d+' '+pad(j.h,2)+'時)'+(i===0?' 最新':'');sel.appendChild(o);});
-  return selectRun(IDX.runs[0].init,null);
+  return selectRun(IDX.runs[0].init,null).then(function(){if(secMode==='route') setSecMode('route');});
 }).catch(fail);
 if(CFG.pirepUrl){
   getJSON(CFG.pirepUrl).then(function(d){

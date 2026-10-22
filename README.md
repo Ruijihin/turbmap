@@ -47,6 +47,7 @@ PNGは画像ではなく、数値(指数×100、0〜255)の入れ物として使
 | `batch/scripts/rish_ca.sh` | 京大サーバーの証明書の不備を補う |
 | `batch/certs/` | 補うための中間証明書とルート証明書(公開情報) |
 | `batch/scripts/make_coast.py` | 表示範囲を変えたときに海岸線を作り直す |
+| `batch/routes/` | 定義ルートの展開(`build_routes.py`)、台湾AIPから写した地点・航空路、空港の表、手で補う地点 |
 | `batch/scripts/make_terrain.py` | 地形の影響圏(`web/terrain.png`)を作る。表示範囲を変えたときに作り直す |
 | `.github/workflows/build.yml` | GitHub Actions の定義 |
 | `worker/` | Cloudflare Worker(画面とデータの配信、定期起動) |

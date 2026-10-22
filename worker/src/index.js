@@ -11,7 +11,7 @@ export default {
         return new Response("Method Not Allowed", { status: 405 });
       }
       const key = decodeURIComponent(url.pathname.slice("/data/".length));
-      if (!/^(index\.json|runs\/\d{10}\/(meta\.json|ft\d{2}\.png))$/.test(key)) {
+      if (!/^(index\.json|routes\/routes\.json|runs\/\d{10}\/(meta\.json|ft\d{2}\.png))$/.test(key)) {
         return new Response("Not Found", { status: 404 });
       }
       const obj = await env.BUCKET.get(key);

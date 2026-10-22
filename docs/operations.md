@@ -79,3 +79,20 @@ python -m turbmap.main --init 2026102009 --out ../out/data
 cd .. && python -m http.server 8000
 # http://localhost:8000/web/?data=/out/data/ で表示を確かめる
 ```
+
+### 定義ルートを作り直す
+断面の「ルート」で選べる定義ルートは、`routes.json`(R2 の `routes/routes.json`)です。社内のルート表を含むので、Git には入れていません。
+大きな改編があったときだけ、次の手順で作り直します。
+
+1. 日本のAIPから KML を4つ(RNAV_ROUTES、ATS_ROUTES、REP_WPT、RADIO_NAVIGATION_AIDS)をダウンロードして、1つのフォルダに置く
+2. 韓国の eAIP(https://aim.koca.go.kr/eaipPub/Package/history-en-GB.html で現在の版を確認)から、
+   `KR-ENR-3.1-en-GB.html`、`KR-ENR-3.3-en-GB.html`、`KR-ENR-3.5-en-GB.html`、`KR-ENR-4.4-en-GB.html` を保存し、
+   `ENR-3.1.html` などの名前で1つのフォルダに置く
+3. 台湾の地点・航空路は `batch/routes/taiwan_aip.txt` に手で写してある(台湾の eAIP:https://ais.caa.gov.tw/eaip/)。変更があればこのファイルを直す
+4. 座標が見つからない地点は `batch/routes/extra_points.txt` に足す
+5. 実行してR2に置く
+```bash
+python batch/routes/build_routes.py --sheet "<ルート表のCSV、またはURL>" --jp-kml <KMLのフォルダ> --kr-html <韓国のHTMLのフォルダ> --out routes.json
+cd worker && npx wrangler r2 object put turbmap-data/routes/routes.json --file ../routes.json --content-type application/json --cache-control no-cache --remote
+```
+ルート表のCSVは、Googleスプレッドシートの「ファイル → ダウンロード → CSV」で取れます(共有リンクが公開なら `.../export?format=csv` でも取れる)。
