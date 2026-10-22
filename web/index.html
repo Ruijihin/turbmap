@@ -223,7 +223,7 @@ details.doc ol,details.doc ul{margin:6px 0 0;padding-left:1.4em;display:flex;fle
       <span class="sp"></span>
       <label class="tog" title="VWSの等値線(6kt点線・9kt細線・12kt太線)。地図と断面に重ねる"><input type="checkbox" id="vwsl" checked>VWS線</label>
       <label class="tog"><input type="checkbox" id="apt" checked>空港</label>
-      <label class="tog" title="雲の可能性(氷相対湿度95%以上)。湿度のデータがあるFL300付近まで"><input type="checkbox" id="cloud">雲</label>
+      <label class="tog" title="雲の可能性。FL300付近までは氷相対湿度(上下の気圧面の大きいほう)と推定雲頂から、それより上はモデルの上層雲量から(白抜きの点)。断面には推定雲頂の線と帯を描く"><input type="checkbox" id="cloud">雲</label>
       <label class="tog" id="pireprow" hidden><input type="checkbox" id="pirep" checked>揺れの報告</label>
     </div>
     <div class="mapbody" id="mapbody">
@@ -314,7 +314,9 @@ details.doc ol,details.doc ul{margin:6px 0 0;padding-left:1.4em;display:flex;fle
   <div class="isec">
     <dl class="kv" style="margin:0">
       <dt>CAPE</dt><dd id="icape">—</dd>
-      <dt>雲頂</dt><dd id="iel">—</dd>
+      <dt>推定雲頂</dt><dd id="ictop">—</dd>
+      <dt>雲量</dt><dd id="icld">—</dd>
+      <dt>対流雲頂</dt><dd id="iel">—</dd>
       <dt>雨</dt><dd id="irain">—</dd>
       <dt>上昇流</dt><dd id="iwup">—</dd>
       <dt>地上風</dt><dd id="iw10">—</dd>
@@ -472,7 +474,25 @@ function zfAt(k){return TZ&&TZ.length===M.nx*M.ny?TZ[k]:1;}
 /* 補助の量(CAPE・雲頂・雨・上昇流)。数値データの末尾にある2次元の量 */
 function auxAt(k){
   if(!M||!M.aux||!D) return null;var N=M.nx*M.ny,base=M.layers.length*M.elems.length*N,g=function(nm){var i=M.aux.indexOf(nm);return i<0?null:D[base+i*N+k]*M.aux_scale[i];};
-  return {cape:g('cape'),el:g('el_fl'),rain:g('rain'),wup:g('wup'),w10:g('wind10')};
+  return {cape:g('cape'),el:g('el_fl'),rain:g('rain'),wup:g('wup'),w10:g('wind10'),
+    ctop:g('ctop'),lo:g('ctop_lo'),hi:g('ctop_hi'),dry:g('ctop_dry'),up:g('cld_up'),mid:g('cld_mid'),low:g('cld_low')};
+}
+/* 補助の量の1枚(地図全体)。無い量は null */
+var apcache={key:'',p:{}};
+function auxPlane(nm){
+  var key=cur.run+'|'+cur.k;if(apcache.key!==key) apcache={key:key,p:{}};
+  if(!(nm in apcache.p)){var i=M&&M.aux?M.aux.indexOf(nm):-1,N=M.nx*M.ny,out=null;
+    if(i>=0&&D){var base=M.layers.length*M.elems.length*N+i*N,sc=M.aux_scale[i];out=new Float32Array(N);for(var k=0;k<N;k++) out[k]=D[base+k]*sc;}
+    apcache.p[nm]=out;}
+  return apcache.p[nm];
+}
+var CTOP_UNK=509;   // 推定雲頂がこれ以上なら「FL300より上(不明)」(バッチでは510)
+/* 推定雲頂の文:「FL250付近(FL240〜300のあいだ)」など */
+function ctopText(a){
+  if(!a||a.ctop==null) return 'この初期値にはありません';
+  if(a.ctop<=0) return '雲なし(FL300まで)';
+  if(a.ctop>=CTOP_UNK) return 'FL300より上(不明)';
+  return 'FL'+pad(Math.round(a.ctop/10)*10,3)+'付近 ('+pad(Math.round(a.lo/10)*10,3)+'〜'+pad(Math.round(a.hi/10)*10,3)+')'+(a.dry<50?' 上は乾燥':'');
 }
 
 /* ===== データ読み込み ===== */
@@ -628,7 +648,8 @@ document.querySelectorAll('[data-m]').forEach(function(b){b.addEventListener('cl
 document.querySelectorAll('[data-s]').forEach(function(b){b.addEventListener('click',function(){setScope(b.dataset.s);});});
 VIEWS.forEach(function(v){var o=document.createElement('option');o.value=v.k;o.textContent=v.nm;$('view').appendChild(o);});
 $('view').addEventListener('change',function(){cur.view=$('view').value;saveUI();layout();draw();});
-['cloud','pirep'].forEach(function(id){$(id).addEventListener('change',function(){drawOverlay();});});
+$('pirep').addEventListener('change',function(){drawOverlay();});
+$('cloud').addEventListener('change',function(){drawOverlay();saveUI();updateSec();});
 $('vwsl').addEventListener('change',function(){saveUI();paintLegend();drawOverlay();secKey='';updateSec();});
 $('apt').addEventListener('change',function(){saveUI();drawOverlay();});
 
@@ -684,12 +705,21 @@ function draw2d(){
   ctx.drawImage(off,sx,sy,ex-sx,ey-sy,0,0,P.W,P.H);
   drawOverlay();
 }
+/* 雲の可能性の点。湿度のある高さ:氷相対湿度がしきい値以上で、推定雲頂より下。
+   湿度の無い高さ(FL300より上):300hPaまで雲があり、モデルの上層雲量が50%以上の所を白抜きの点で */
+function drawCloudDots(o,dpr,dk){
+  var rh=fieldsAt(cur.fl).rh,thr=(M.cloud_rhi||95)/100,ct=auxPlane('ctop'),up=auxPlane('cld_up'),fl=cur.fl;
+  var step=cur.view==='all'?3:2,col=dk?'rgba(230,235,240,.55)':'rgba(30,40,55,.45)',hollow=false;
+  o.fillStyle=col;o.strokeStyle=col;o.lineWidth=0.9*dpr;
+  for(var j=0;j<M.ny;j+=step)for(var i2=(j/step)%2;i2<M.nx;i2+=step){var k=j*M.nx+i2,r=rh[k],on;
+    if(!isNaN(r)){on=r>=thr&&(!ct||ct[k]>=CTOP_UNK||fl<=ct[k]+5);hollow=false;}
+    else{on=!!(ct&&up)&&ct[k]>=CTOP_UNK&&up[k]>=50;hollow=true;}
+    if(!on) continue;o.beginPath();o.arc(X(M.lon0+i2*M.dlon),Y(M.lat0+j*M.dlat),(hollow?1.4:1.1)*dpr,0,7);if(hollow) o.stroke();else o.fill();}
+}
 function drawOverlay(){
   if(!M||cur.dim==='3d') return;
   var o=ov.getContext('2d'),dpr=P.dpr,dk=dark();o.clearRect(0,0,P.W,P.H);
-  if($('cloud').checked){var rh=fieldsAt(cur.fl).rh;o.fillStyle=dk?'rgba(230,235,240,.55)':'rgba(30,40,55,.45)';
-    var step=cur.view==='all'?3:2;
-    for(var j=0;j<M.ny;j+=step)for(var i2=(j/step)%2;i2<M.nx;i2+=step){if(rh[j*M.nx+i2]>=0.95){o.beginPath();o.arc(X(M.lon0+i2*M.dlon),Y(M.lat0+j*M.dlat),1.1*dpr,0,7);o.fill();}}}
+  if($('cloud').checked) drawCloudDots(o,dpr,dk);
   o.strokeStyle=css('--landline');o.lineWidth=0.9*dpr;
   COAST.forEach(function(p){o.beginPath();p.forEach(function(q,i){var x=X(q[0]),y=Y(q[1]);i?o.lineTo(x,y):o.moveTo(x,y);});o.stroke();});
   o.fillStyle=css('--muted');o.font=(10.5*dpr)+'px '+css('--font');o.strokeStyle=css('--line');o.lineWidth=0.6*dpr;o.setLineDash([3*dpr,4*dpr]);
@@ -804,7 +834,7 @@ function renderInfo(){
   st.textContent=!probe.active?'—':probe.pinned?'📌 固定中':probe.dist!=null?'断面上':'カーソル';
   st.classList.toggle('pin',probe.pinned);$('iunpin').disabled=!probe.pinned;
   var k=probe.active&&M&&D?gridIndex(probe.lat,probe.lon):-1;
-  if(k<0){['ipos','ifl','itime','idist','itot','icat','idom','icape','iel','irain','iwup','iw10','irhi'].forEach(function(id){setText(id,'—');});
+  if(k<0){['ipos','ifl','itime','idist','itot','icat','idom','icape','ictop','icld','iel','irain','iwup','iw10','irhi'].forEach(function(id){setText(id,'—');});
     $('itbar').style.width='0';$('icombo').textContent='—';
     EL.forEach(function(e){var r=$('ie_'+e.k);r.querySelector('.v').textContent='—';r.querySelector('.vbar i').style.width='0';r.querySelector('.u').textContent='—';});return;}
   var fl=probe.fl==null?cur.fl:probe.fl,fa=fieldsAt(fl),F=fa.F;
@@ -823,9 +853,11 @@ function renderInfo(){
     r.querySelector('.u').textContent=!has?'この初期値にはありません':(e.low&&fl<120?(fl<=60?'FL060以下は評価しない':'低い高度なので弱めに評価'):e.unit(s));});
   var ax=auxAt(k);
   if(ax&&M.aux){setText('icape',pad(Math.round(ax.cape),4).replace(/^0+(?=\d)/,function(m){return m.replace(/0/g,' ');})+' J/kg');
-    setText('iel',ax.el>0?'FL'+pad(Math.round(ax.el/10)*10,3):'—');setText('irain',ax.rain.toFixed(1)+' mm/h');setText('iwup',ax.wup.toFixed(1)+' m/s');setText('iw10',ax.w10!=null?Math.round(ax.w10)+' kt':'—');}
-  else ['icape','iel','irain','iwup','iw10'].forEach(function(id){setText(id,'—');});
-  var rh=fa.rh[k];setText('irhi',isNaN(rh)?'データなし(FL300より上)':Math.round(rh*100)+' %');
+    setText('iel',ax.el>0?'FL'+pad(Math.round(ax.el/10)*10,3):'—');setText('ictop',ctopText(ax));
+    $('ictop').title=ax.ctop>0&&ax.ctop<CTOP_UNK?'雲頂は、雲のある気圧面(FL'+pad(Math.round(ax.lo),3)+')と、その上の乾いた面(FL'+pad(Math.round(ax.hi),3)+'、氷湿度 '+Math.round(ax.dry)+'%)のあいだ':'';
+    setText('icld',ax.up==null?'この初期値にはありません':'上層 '+Math.round(ax.up)+'% · 中層 '+Math.round(ax.mid)+'% · 下層 '+Math.round(ax.low)+'%');setText('irain',ax.rain.toFixed(1)+' mm/h');setText('iwup',ax.wup.toFixed(1)+' m/s');setText('iw10',ax.w10!=null?Math.round(ax.w10)+' kt':'—');}
+  else ['icape','ictop','icld','iel','irain','iwup','iw10'].forEach(function(id){setText(id,'—');});
+  var rh=fa.rh[k];setText('irhi',isNaN(rh)?'データなし(FL300より上)':Math.round(rh*100)+' %'+(M.cloud_rhi?'(上下の面の大きいほう)':''));
   if(ax&&withCloud&&ax.rain>=3&&ax.cape<100) t.notes.push('− 雨はあるが浮力がない層状の雲(雲による揺れは小さい)');
   $('icombo').innerHTML=t.notes.length?t.notes.map(function(s){return '<div'+(s[0]==='+'?' class="plus"':'')+'>'+s+'</div>';}).join(''):'—';
 }
@@ -1064,7 +1096,7 @@ function updateSec(){
   $('secempty').hidden=has;$('seccv').hidden=!has;$('secov').hidden=!has;
   if(!has){secGeom=null;return;}
   var cv2=$('seccv'),dpr=Math.min(window.devicePixelRatio||1,2),cw=cv2.clientWidth||800,ch=SECH;
-  var key=cur.run+'|'+cur.k+'|'+target+'|'+withCloud+'|'+cw+'|'+dark()+'|'+$('vwsl').checked+'|'+JSON.stringify(sec.pts);
+  var key=cur.run+'|'+cur.k+'|'+target+'|'+withCloud+'|'+cw+'|'+dark()+'|'+$('vwsl').checked+'|'+$('cloud').checked+'|'+JSON.stringify(sec.pts);
   if(key===secKey){drawSecOverlay();return;} secKey=key;
   var vol=buildVolume(),path=samplePath(),n=path.n,nz=FLS.length,dk=dark(),bg=dk?[15,23,32]:[238,243,248];
   var flip=secFlip();   // 東から西へ向かう経路は、始点(0km)を右端にする
@@ -1092,6 +1124,8 @@ function updateSec(){
     drawVwsLines(ctx,function(i2,j2){return vm[i2*nz+j2];},n,nz,function(i2,j2){return [XD(i2/(n-1)*path.total),T+(flMax-FLS[0]-j2*10)/(flMax-flMin)*ph];},1);
     ctx.restore();
   }
+  var hasCt=$('cloud').checked&&auxPlane('ctop');
+  if(hasCt) drawSecCloudTop(ctx,path,XD,L,T,pw,ph,flMin,flMax,dk);
   var fg=css('--fg'),mu=css('--muted'),ln=css('--line'),pc=css('--path');ctx.font='11px '+css('--mono');ctx.textBaseline='middle';
   ctx.strokeStyle=ln;ctx.fillStyle=mu;ctx.lineWidth=1;
   for(var fl2=50;fl2<=400;fl2+=50){var y=T+(flMax-fl2)/(flMax-flMin)*ph;ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(L+pw,y);ctx.setLineDash([3,4]);ctx.stroke();ctx.setLineDash([]);ctx.textAlign='right';ctx.fillText('FL'+fl2,L-6,y);}
@@ -1118,6 +1152,10 @@ function updateSec(){
     ctx.fillStyle=fg;ctx.beginPath();ctx.moveTo(x,T+ph+19);ctx.lineTo(x-4,T+ph+25);ctx.lineTo(x+4,T+ph+25);ctx.closePath();ctx.fill();
     var tx=Math.max(L+14,Math.min(L+pw-14,x));ctx.fillText(p.code,tx,ya+2);ctx.fillStyle=mu;ctx.fillText(Math.round(p.d)+'km',tx,ya+15);});
   ctx.textAlign='left';ctx.fillStyle=mu;ctx.font='10px '+css('--font');ctx.fillText('空港',4,ya+2);ctx.fillText('(横距離)',4,ya+15);
+  if(hasCt){var cc=dk?'rgba(235,240,245,.95)':'rgba(25,35,50,.9)',lx2=L+8,ly=T+12;ctx.fillStyle=css('--surface');ctx.globalAlpha=.85;ctx.fillRect(lx2-4,ly-9,128,18);ctx.globalAlpha=1;
+    ctx.fillStyle=dk?'rgba(235,240,245,.18)':'rgba(25,35,50,.1)';ctx.fillRect(lx2,ly-5,22,10);
+    ctx.strokeStyle=cc;ctx.lineWidth=1.6;ctx.setLineDash([]);ctx.beginPath();ctx.moveTo(lx2,ly);ctx.lineTo(lx2+22,ly);ctx.stroke();ctx.lineWidth=1;
+    ctx.fillStyle=mu;ctx.fillText('雲頂(推定)と幅',lx2+27,ly);}
   // 対象名と凡例
   ctx.font='12px '+css('--font');ctx.fillStyle=fg;ctx.textAlign='left';
   ctx.fillText(TARGETS.filter(function(t){return t.k===target;})[0].nm,L+16,T-10);
@@ -1125,6 +1163,28 @@ function updateSec(){
   secGeom={L:L,T:T,pw:pw,ph:ph,path:path,flMin:flMin,flMax:flMax,cw:cw,ch:ch,dpr:dpr,flip:flip};
   var so=$('secov');so.width=cv2.width;so.height=cv2.height;so.style.height=ch+'px';
   drawSecOverlay();
+}
+/* 断面に推定雲頂を描く:雲頂の線と、雲頂がありうる幅(雲のある面〜乾いた面)の帯。
+   300hPaまで雲がある所は、FL300の上に上向きの印(雲頂はそれより上で不明) */
+function drawSecCloudTop(ctx,path,XD,L,T,pw,ph,flMin,flMax,dk){
+  var ct=auxPlane('ctop'),lo=auxPlane('ctop_lo'),hi=auxPlane('ctop_hi'),n=path.n,i;
+  var Yf=function(f){return T+(flMax-Math.max(flMin,Math.min(flMax,f)))/(flMax-flMin)*ph;};
+  var v=[];for(i=0;i<n;i++){var k=gridIndex(path.lat[i],path.lon[i]);v.push(k<0?null:{c:ct[k],lo:lo[k],hi:hi[k]});}
+  var cc=dk?'rgba(235,240,245,.95)':'rgba(25,35,50,.9)',band=dk?'rgba(235,240,245,.14)':'rgba(25,35,50,.1)',halo=dk?'rgba(0,0,0,.55)':'rgba(255,255,255,.8)';
+  var ok=function(q){return q&&q.c>0&&q.c<CTOP_UNK;},unk=function(q){return q&&q.c>=CTOP_UNK;};
+  ctx.save();ctx.beginPath();ctx.rect(L,T,pw,ph);ctx.clip();
+  var dx=pw/(n-1),xs=function(i2){return XD(path.total*i2/(n-1));};
+  for(i=0;i<n;i++) if(ok(v[i])){ctx.fillStyle=band;ctx.fillRect(xs(i)-dx/2,Yf(v[i].hi),dx+0.5,Yf(v[i].lo)-Yf(v[i].hi));}
+  [[halo,3.6],[cc,1.6]].forEach(function(s){ctx.strokeStyle=s[0];ctx.lineWidth=s[1];ctx.beginPath();
+    for(i=0;i<n;i++){if(!ok(v[i])) continue;var y=Yf(v[i].c);
+      if(i>0&&ok(v[i-1])) ctx.lineTo(xs(i),y);else ctx.moveTo(xs(i)-dx/2,y);
+      if(i===n-1||!ok(v[i+1])) ctx.lineTo(xs(i)+dx/2,y);}
+    ctx.stroke();});
+  // FL300より上で不明:FL300の線上に、まばらに上向きの矢印
+  var y3=Yf(300),last=-99;ctx.strokeStyle=cc;ctx.lineWidth=1.3;
+  for(i=0;i<n;i++) if(unk(v[i])){var x2=xs(i);if(Math.abs(x2-last)<14) continue;last=x2;
+    ctx.beginPath();ctx.moveTo(x2,y3);ctx.lineTo(x2,y3-9);ctx.moveTo(x2-3,y3-6);ctx.lineTo(x2,y3-9);ctx.lineTo(x2+3,y3-6);ctx.stroke();}
+  ctx.restore();ctx.lineWidth=1;
 }
 /* 断面の重ね描き:地図の表示高度(横線)と、カーソル/固定地点(縦線) */
 function drawSecOverlay(){

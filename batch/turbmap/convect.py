@@ -135,6 +135,13 @@ class MsmSurfaceFile:
         r = maximum_filter(r, size=5)              # 地上ファイルは約5km格子
         return r[::2, ::2]
 
+    def cloud(self, name, hour):
+        """モデルの雲量(%)。古い形式に無いときは0。"""
+        try:
+            return self._rd(name, self.hours.index(hour))[::2, ::2]
+        except KeyError:
+            return np.zeros_like(self._rd("sp", self.hours.index(hour))[::2, ::2])
+
     def wind10_max(self, hour):
         """地上10mの風速(kt)。前後1時間の最大を、周囲約15kmの最大で広げる。"""
         its = [self.hours.index(h) for h in (hour, hour + 1) if h in self.hours]

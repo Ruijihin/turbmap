@@ -22,7 +22,11 @@ LAYER_PAIRS = [(950, 900), (900, 850), (850, 800), (800, 700), (700, 600), (600,
 ELEMS = ["mw", "ii", "df", "ri", "vws", "rhi", "cv", "mi"]
 MISSING_ELEMS = ["rhi", "mi"]          # 湿度を使うので、300hPaより上は「データなし」
 # 補助の量:名前と、画素値に掛けると元の単位になる係数
-AUX = [("cape", 40.0), ("el_fl", 2.0), ("rain", 0.2), ("wup", 0.02), ("wind10", 0.5)]   # J/kg, FL, mm/h, m/s, kt
+AUX = [("cape", 40.0), ("el_fl", 2.0), ("rain", 0.2), ("wup", 0.02), ("wind10", 0.5),   # J/kg, FL, mm/h, m/s, kt
+       ("ctop", 2.0), ("ctop_lo", 2.0), ("ctop_hi", 2.0), ("ctop_dry", 0.5),          # 推定雲頂 FL(帯の下・上)、雲頂のすぐ上の氷相対湿度 %
+       ("cld_up", 0.5), ("cld_mid", 0.5), ("cld_low", 0.5)]                           # モデルの上層・中層・下層雲量 %
+CLOUD_RHI = 90.0     # 氷に対する相対湿度がこれ以上の気圧面を「雲」とみなす
+CTOP_UNKNOWN = 510.0 # 300hPa(湿度のある最上面)まで雲がある:雲頂は FL300 より上で不明
 
 # 「並(moderate)相当」の目安。指数 = 値 / 目安。
 THRESH = {
@@ -61,6 +65,36 @@ class MsmPressureFile(MsmFile):
 
     def read(self, name, it, p):
         return super().read(name, it, self.lev.index(float(p)))
+
+
+def cloud_top(levs, T, RH, sp):
+    """各格子の、いちばん上の雲の雲頂を推定する(湿度がある300hPaまで)。
+
+    氷に対する湿度が CLOUD_RHI 以上の最も高い気圧面と、そのすぐ上の面のあいだを、
+    対数気圧で直線補間して湿度が CLOUD_RHI を切る高さを雲頂とする。帯の下・上は2つの面の高さ。
+    雲が無い所は0、300hPaまで雲がある所は CTOP_UNKNOWN。
+    """
+    fl = lambda p: 44330.8 * (1 - (np.asarray(p, float) / 1013.25) ** 0.190263) / 30.48
+    ks = [k for k, p in enumerate(levs) if p >= 300]
+    rhi = np.stack([RH[k] * _esw(T[k]) / _esi(T[k]) for k in ks])
+    above = np.stack([levs[k] <= sp - 5 for k in ks])                 # 地面より上の面だけ
+    cloudy = (rhi >= CLOUD_RHI) & above
+    anyc = cloudy.any(0)
+    kt = len(ks) - 1 - np.argmax(cloudy[::-1], axis=0)                 # いちばん上の雲の面
+    top_open = anyc & (kt == len(ks) - 1)                              # 300hPaまで雲
+    ok = anyc & ~top_open
+    k2 = np.minimum(kt + 1, len(ks) - 1)
+    r1 = np.take_along_axis(rhi, kt[None], 0)[0]
+    r2 = np.take_along_axis(rhi, k2[None], 0)[0]
+    pa = np.array([levs[k] for k in ks])[kt]
+    pb = np.array([levs[k] for k in ks])[k2]
+    f = np.clip((r1 - CLOUD_RHI) / np.maximum(r1 - r2, 1e-6), 0, 1)
+    pt = pa * (pb / pa) ** f
+    ctop = np.where(ok, fl(pt), np.where(top_open, CTOP_UNKNOWN, 0))
+    lo = np.where(ok, fl(pa), np.where(top_open, CTOP_UNKNOWN, 0))
+    hi = np.where(ok, fl(pb), np.where(top_open, CTOP_UNKNOWN, 0))
+    dry = np.where(ok, r2, 0)
+    return {"ctop": ctop, "ctop_lo": lo, "ctop_hi": hi, "ctop_dry": dry}
 
 
 def compute_run(path, spath=None, ft_min=3, ft_max=33):
@@ -104,6 +138,9 @@ def compute_run(path, spath=None, ft_min=3, ft_max=33):
         cv_layers, aux = convect.convective_layers(
             levs, T, RH, Z, W, sp, rain, LAYER_PAIRS, lambda k: levs[k] * 100 / (RD * T[k]))
         aux["wind10"] = sfc.wind10_max(hour)[: len(lat), : len(lon)] if sfc else np.zeros(T.shape[1:])
+        aux.update(cloud_top(levs, T, RH, sp))
+        for nm, var in (("cld_up", "ncld_upper"), ("cld_mid", "ncld_mid"), ("cld_low", "ncld_low")):
+            aux[nm] = sfc.cloud(var, hour)[: len(lat), : len(lon)] if sfc else np.zeros(T.shape[1:])
         for a_x, (name, scale) in enumerate(AUX):
             aux_out[a_t, a_x] = np.clip(np.round(aux[name][np.ix_(jj, ii)] / scale), 0, 255).astype(np.uint8)
 
@@ -134,7 +171,9 @@ def compute_run(path, spath=None, ft_min=3, ft_max=33):
             w_ms = -((wa + wb) / 2) / (rho * G0)
             w_pert = w_ms - gaussian_filter(w_ms, 6)          # 約60kmより大きい動きを除く
             sigma_w = np.sqrt(uniform_filter(w_pert ** 2, 5))
-            rhi = ((rha + rhb) / 2) * _esw(tm) / _esi(tm)
+            rhi = ((rha + rhb) / 2) * _esw(tm) / _esi(tm)           # 層の平均(雲中の湿潤不安定に使う)
+            # 雲の可能性は、上下の気圧面の大きいほう。薄い雲の上が急に乾く層でも、平均で消えないように
+            rhi_max = np.maximum(rha * _esw(ta) / _esi(ta), rhb * _esw(tb) / _esi(tb))
 
             score = {
                 "mw": sigma_w / THRESH["sigma_w"],
@@ -142,7 +181,7 @@ def compute_run(path, spath=None, ft_min=3, ft_max=33):
                 "df": ti1 / THRESH["ti1"],
                 "ri": THRESH["ri"] / np.maximum(ri, 0.05),
                 "vws": vws * 0.3048 * 1.94384 * 1000 / THRESH["vws"],
-                "rhi": rhi / 100,
+                "rhi": rhi_max / 100,
                 "cv": cv_layers[a_l],
                 "mi": convect.moist_instability(ta, tb, rha, rhb, za, zb, pa, pb, rhi),
             }
@@ -174,6 +213,8 @@ def compute_run(path, spath=None, ft_min=3, ft_max=33):
         "scale": 0.01,
         "missing": RH_MISSING,
         "rhi_valid_max_fl": round(isa_flight_level(RH_MIN_P), 1),   # これより上は氷相対湿度なし
+        "cloud_rhi": CLOUD_RHI,
+        "ctop_unknown": CTOP_UNKNOWN,
         "rhi_valid_layers": sum(1 for a, b in LAYER_PAIRS if min(a, b) >= RH_MIN_P),
         "missing_elems": MISSING_ELEMS,
         "aux": [a for a, _ in AUX],
