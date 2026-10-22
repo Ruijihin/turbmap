@@ -215,6 +215,7 @@ details.doc ol,details.doc ul{margin:6px 0 0;padding-left:1.4em;display:flex;fle
       </div>
       <select id="view" aria-label="表示範囲" style="width:auto"></select>
       <span class="sp"></span>
+      <label class="tog" title="VWSの等値線(6kt点線・9kt細線・12kt太線)。地図と断面に重ねる"><input type="checkbox" id="vwsl" checked>VWS線</label>
       <label class="tog"><input type="checkbox" id="apt" checked>空港</label>
       <label class="tog" title="雲の可能性(氷相対湿度95%以上)。湿度のデータがあるFL300付近まで"><input type="checkbox" id="cloud">雲</label>
       <label class="tog" id="pireprow" hidden><input type="checkbox" id="pirep" checked>揺れの報告</label>
@@ -375,10 +376,10 @@ function fmtLon(v){return v.toFixed(2)+'°E';}
 
 /* 設定の記憶(このブラウザだけ) */
 var SKEY='turbmap.ui.v2';
-function saveUI(){try{localStorage.setItem(SKEY,JSON.stringify({fl:cur.fl,view:cur.view,mode:cur.mode,scope:withCloud,target:target,apt:$('apt').checked,on:EL.map(function(e){return e.on;})}));}catch(e){}}
+function saveUI(){try{localStorage.setItem(SKEY,JSON.stringify({fl:cur.fl,view:cur.view,mode:cur.mode,scope:withCloud,target:target,apt:$('apt').checked,vwsl:$('vwsl').checked,on:EL.map(function(e){return e.on;})}));}catch(e){}}
 function loadUI(){try{var s=JSON.parse(localStorage.getItem(SKEY)||'null');if(!s) return;
   if(s.fl>=FLMIN&&s.fl<=FLMAX) cur.fl=s.fl; if(s.view) cur.view=s.view; if(s.mode) cur.mode=s.mode; if(s.scope!=null) withCloud=s.scope;
-  if(s.target) target=s.target; if(s.apt!=null) $('apt').checked=s.apt; if(s.on&&s.on.length===EL.length) EL.forEach(function(e,i){e.on=!!s.on[i];});}catch(e){}}
+  if(s.target) target=s.target; if(s.apt!=null) $('apt').checked=s.apt; if(s.vwsl!=null) $('vwsl').checked=s.vwsl; if(s.on&&s.on.length===EL.length) EL.forEach(function(e,i){e.on=!!s.on[i];});}catch(e){}}
 
 /* ===== 総合:組み合わせを考慮した揺れやすさ(1.0=並) ===== */
 var MW_FLOOR=0.2,MW_NONORO=0.35;
@@ -609,6 +610,7 @@ document.querySelectorAll('[data-s]').forEach(function(b){b.addEventListener('cl
 VIEWS.forEach(function(v){var o=document.createElement('option');o.value=v.k;o.textContent=v.nm;$('view').appendChild(o);});
 $('view').addEventListener('change',function(){cur.view=$('view').value;saveUI();layout();draw();});
 ['cloud','pirep'].forEach(function(id){$(id).addEventListener('change',function(){drawOverlay();});});
+$('vwsl').addEventListener('change',function(){saveUI();paintLegend();drawOverlay();secKey='';updateSec();});
 $('apt').addEventListener('change',function(){saveUI();drawOverlay();});
 
 /* 凡例と要素のチップ */
@@ -616,6 +618,8 @@ function paintLegend(){
   var dk=dark(),S=dk?TD:TL,h='';
   if(cur.mode==='total') h=CAT.map(function(c,i){return '<span class="cat"><i style="background:'+rgb(S[i])+'"></i>'+c.nm+'('+c.v.toFixed(1)+')</span>';}).join(' ')+' <span class="muted" style="font-size:.75rem">総合は全要素を使用</span>';
   else h='<span class="cat">色の濃さ:弱(0.5)</span> <span class="ramp"></span> <span class="cat">強(1.6以上)</span> <span class="muted" style="font-size:.75rem">重なると色が混ざる</span>';
+  if($('vwsl').checked){var sw=function(L){return '<svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="currentColor" stroke-width="'+L.w*1.2+'"'+(L.dash.length?' stroke-dasharray="2 3"':'')+'/></svg>';};
+    h+=' <span class="cat" style="gap:6px">VWS '+VWS_LV.map(function(L){return sw(L)+L.kt+'kt';}).join(' ')+'</span>';}
   $('legend').innerHTML=h;
   $('chips').classList.toggle('off',cur.mode==='total');
   EL.forEach(function(e){e.chip.style.setProperty('--c',rgb(ecol(e)));e.chip.setAttribute('aria-pressed',e.on?'true':'false');});
@@ -681,6 +685,10 @@ function drawOverlay(){
       o.fillStyle=dk?'rgba(230,235,240,.7)':'rgba(25,35,48,.62)';o.fillText(a.code,x+4*dpr,y);});
     o.textBaseline='alphabetic';
   }
+  if($('vwsl').checked){
+    var vw=fieldsAt(cur.fl).F.vws,nx=M.nx;
+    drawVwsLines(o,function(i,j){var v=vw[j*nx+i];return v>0?v:NaN;},M.nx,M.ny,function(i,j){return [X(M.lon0+i*M.dlon),Y(M.lat0+j*M.dlat)];},dpr);
+  }
   drawPireps(o,dpr);
   if(sec.pts.length){
     o.strokeStyle=css('--path');o.fillStyle=css('--path');o.lineWidth=2.5*dpr;o.beginPath();
@@ -689,6 +697,29 @@ function drawOverlay(){
     sec.pts.forEach(function(p,i){var x=X(p[0]),y=Y(p[1]);o.beginPath();o.arc(x,y,4.5*dpr,0,7);o.fill();o.fillText(SECLET[i],x+7*dpr,y-7*dpr);});
   }
   drawProbe();
+}
+/* ===== VWSの等値線:6kt 点線 / 9kt 細い実線 / 12kt 太い実線(VWSの指数は 6kt=1.0) ===== */
+var VWS_LV=[{v:1.0,kt:6,w:1.0,dash:[2,3]},{v:1.5,kt:9,w:1.3,dash:[]},{v:2.0,kt:12,w:2.6,dash:[]}];
+var MS=[null,[3,2],[2,1],[3,1],[0,1],[[0,1],[3,2]],[0,2],[3,0],[3,0],[0,2],[[3,0],[2,1]],[0,1],[3,1],[2,1],[3,2],null];
+// Z(i,j) の格子で、しきい値 thr の等値線を線分として cb(x1,y1,x2,y2) に渡す(格子座標)。NaN の格子は飛ばす
+function contour(Z,ni,nj,thr,cb){
+  for(var j=0;j<nj-1;j++) for(var i=0;i<ni-1;i++){
+    var a=Z(i,j),b=Z(i+1,j),c=Z(i+1,j+1),d=Z(i,j+1);
+    if(!(a===a&&b===b&&c===c&&d===d)) continue;
+    var id=(a>=thr?8:0)|(b>=thr?4:0)|(c>=thr?2:0)|(d>=thr?1:0),e=MS[id];if(!e) continue;
+    var P2=function(k){switch(k){case 0:return [i+(thr-a)/(b-a),j];case 1:return [i+1,j+(thr-b)/(c-b)];case 2:return [i+(thr-d)/(c-d),j+1];default:return [i,j+(thr-a)/(d-a)];}};
+    var segs=typeof e[0]==='number'?[e]:e;
+    for(var s=0;s<segs.length;s++){var p=P2(segs[s][0]),q=P2(segs[s][1]);cb(p[0],p[1],q[0],q[1]);}
+  }
+}
+function vwsColor(){return dark()?'rgba(235,240,245,.92)':'rgba(18,26,38,.85)';}
+function drawVwsLines(o,Z,ni,nj,toXY,scale){
+  o.strokeStyle=vwsColor();o.lineCap='round';
+  VWS_LV.forEach(function(L){
+    o.lineWidth=L.w*scale;o.setLineDash(L.dash.map(function(x){return x*scale;}));o.beginPath();
+    contour(Z,ni,nj,L.v,function(x1,y1,x2,y2){var p=toXY(x1,y1),q=toXY(x2,y2);o.moveTo(p[0],p[1]);o.lineTo(q[0],q[1]);});o.stroke();
+  });
+  o.setLineDash([]);
 }
 /* 地点の印(ホバー・固定・断面の位置)と、断面作成中の仮の線 */
 var hoverLL=null;
@@ -779,19 +810,21 @@ stage.addEventListener('click',function(ev){
 /* ===== 3D ===== */
 var FLS=[];for(var f0=FLMIN;f0<=FLMAX;f0+=10) FLS.push(f0);
 var TARGETS=[{k:'total',nm:'総合'},{k:'mw',nm:'山岳波・重力波'},{k:'ii',nm:'慣性不安定'},{k:'df',nm:'変形場'},{k:'ri',nm:'低リチャードソン数'},{k:'vws',nm:'VWS'},{k:'cv',nm:'対流'},{k:'mi',nm:'雲中の湿潤不安定'},{k:'mech',nm:'地表付近の乱れ'}];
-var volCache={key:'',vol:null};
+var volCache={key:'',vols:{}};
 ['target','target3'].forEach(function(id){TARGETS.forEach(function(t){var o=document.createElement('option');o.value=t.k;o.textContent=t.nm;$(id).appendChild(o);});
   $(id).addEventListener('change',function(){target=$(id).value;$('target').value=target;$('target3').value=target;saveUI();draw();});});
-function buildVolume(){
-  var key=cur.run+'|'+cur.k+'|'+target+'|'+withCloud;if(volCache.key===key) return volCache.vol;
+function buildVolume(tk){
+  tk=tk||target;var key=cur.run+'|'+cur.k+'|'+withCloud;
+  if(volCache.key!==key) volCache={key:key,vols:{}};
+  if(volCache.vols[tk]) return volCache.vols[tk];
   var N=M.nx*M.ny,nz=FLS.length,vol=new Float32Array(N*nz);
   for(var z=0;z<nz;z++){
     var fl=FLS[z],o=z*N;
-    if(target==='total'){var F={};['mw','ii','df','ri','vws','cv','mi','mech'].forEach(function(k){F[k]=field(k,fl);});
+    if(tk==='total'){var F={};['mw','ii','df','ri','vws','cv','mi','mech'].forEach(function(k){F[k]=field(k,fl);});
       for(var k2=0;k2<N;k2++) vol[o+k2]=totalCore(F.mw[k2],F.ii[k2],F.df[k2],F.ri[k2],F.vws[k2],F.cv[k2],F.mi[k2],fl,zfAt(k2),null,F.mech[k2]);}
-    else vol.set(field(target,fl),o);
+    else vol.set(field(tk,fl),o);
   }
-  volCache={key:key,vol:vol};return vol;
+  volCache.vols[tk]=vol;return vol;
 }
 var V3=null,v3key='';
 function ensure3d(){if(V3) return Promise.resolve(V3);return import('./view3d.js').then(function(m){V3=m.create($('stage3'));return V3;});}
@@ -912,7 +945,7 @@ function updateSec(){
   $('secempty').hidden=has;$('seccv').hidden=!has;$('secov').hidden=!has;
   if(!has){secGeom=null;return;}
   var cv2=$('seccv'),dpr=Math.min(window.devicePixelRatio||1,2),cw=cv2.clientWidth||800,ch=SECH;
-  var key=cur.run+'|'+cur.k+'|'+target+'|'+withCloud+'|'+cw+'|'+dark()+'|'+JSON.stringify(sec.pts);
+  var key=cur.run+'|'+cur.k+'|'+target+'|'+withCloud+'|'+cw+'|'+dark()+'|'+$('vwsl').checked+'|'+JSON.stringify(sec.pts);
   if(key===secKey){drawSecOverlay();return;} secKey=key;
   var vol=buildVolume(),path=samplePath(),n=path.n,nz=FLS.length,dk=dark(),bg=dk?[15,23,32]:[238,243,248];
   var mat=new Float32Array(n*nz),i,z;
@@ -930,6 +963,13 @@ function updateSec(){
   }
   ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv2.width,cv2.height);ctx.putImageData(img,Math.round(L*dpr),Math.round(T*dpr));
   ctx.setTransform(dpr,0,0,dpr,0,0);
+  if($('vwsl').checked){   // VWSの等値線(距離×高度の格子で)
+    var vv=buildVolume('vws'),vm=new Float32Array(n*nz);
+    for(i=0;i<n;i++) for(z=0;z<nz;z++){var q=bil(vv,z,path.lon[i],path.lat[i]);vm[i*nz+z]=q>0?q:NaN;}
+    ctx.save();ctx.beginPath();ctx.rect(L,T,pw,ph);ctx.clip();
+    drawVwsLines(ctx,function(i2,j2){return vm[i2*nz+j2];},n,nz,function(i2,j2){return [L+i2/(n-1)*pw,T+(flMax-FLS[0]-j2*10)/(flMax-flMin)*ph];},1);
+    ctx.restore();
+  }
   var fg=css('--fg'),mu=css('--muted'),ln=css('--line'),pc=css('--path');ctx.font='11px '+css('--mono');ctx.textBaseline='middle';
   ctx.strokeStyle=ln;ctx.fillStyle=mu;ctx.lineWidth=1;
   for(var fl2=50;fl2<=400;fl2+=50){var y=T+(flMax-fl2)/(flMax-flMin)*ph;ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(L+pw,y);ctx.setLineDash([3,4]);ctx.stroke();ctx.setLineDash([]);ctx.textAlign='right';ctx.fillText('FL'+fl2,L-6,y);}
