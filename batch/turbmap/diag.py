@@ -9,6 +9,7 @@ from scipy.io import netcdf_file
 from scipy.ndimage import gaussian_filter, uniform_filter
 
 from . import convect
+from .msmfile import MsmFile
 
 G0 = 9.80665
 RD = 287.05
@@ -55,25 +56,11 @@ def _esi(t):
     return 6.112 * np.exp(22.46 * (t - 273.15) / (t - 0.53))
 
 
-class MsmPressureFile:
-    def __init__(self, path):
-        self.f = netcdf_file(path, "r", mmap=False)
-        v = self.f.variables
-        self.lat = v["lat"][:].copy()
-        self.lon = v["lon"][:].copy()
-        self.lev = [float(x) for x in v["p"][:]]
-        self.hours = [float(x) for x in v["time"][:]]
-        self.time_units = v["time"].units.decode() if isinstance(v["time"].units, bytes) else v["time"].units
+class MsmPressureFile(MsmFile):
+    """気圧面ファイル。形式の違い(新旧)は MsmFile が吸収する。"""
 
     def read(self, name, it, p):
-        var = self.f.variables[name]
-        a = np.array(var[it, self.lev.index(float(p))], dtype=float)
-        if hasattr(var, "scale_factor"):
-            a = a * var.scale_factor + var.add_offset
-        return a
-
-    def close(self):
-        self.f.close()
+        return super().read(name, it, self.lev.index(float(p)))
 
 
 def compute_run(path, spath=None, ft_min=3, ft_max=33):

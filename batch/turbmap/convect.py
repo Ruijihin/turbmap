@@ -11,6 +11,8 @@ import numpy as np
 from scipy.io import netcdf_file
 from scipy.ndimage import gaussian_filter, maximum_filter
 
+from .msmfile import MsmFile
+
 G0 = 9.80665
 
 THRESH_CV = {
@@ -116,13 +118,11 @@ class MsmSurfaceFile:
     """地上ファイル(毎時)。地上気圧と1時間降水量を、気圧面の格子に合わせて返す。"""
 
     def __init__(self, path):
-        self.f = netcdf_file(path, "r", mmap=False)
-        v = self.f.variables
-        self.hours = [float(x) for x in v["time"][:]]
+        self.m = MsmFile(path)              # 形式の違い(新旧)を吸収して、緯度は北→南で読む
+        self.hours = self.m.hours
 
     def _rd(self, name, it):
-        var = self.f.variables[name]
-        return np.array(var[it], float) * var.scale_factor + var.add_offset
+        return self.m.read(name, it)
 
     def sp_hpa(self, hour):
         it = self.hours.index(hour)
@@ -143,7 +143,7 @@ class MsmSurfaceFile:
         return w[::2, ::2]
 
     def close(self):
-        self.f.close()
+        self.m.close()
 
 
 def convective_layers(levs, T, RH, Z, W, sp, rain, pairs, rho_of):

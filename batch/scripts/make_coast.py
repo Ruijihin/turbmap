@@ -15,15 +15,15 @@ from scipy.ndimage import gaussian_filter  # noqa: E402
 
 sys.path.insert(0, __file__.rsplit("scripts", 1)[0])
 from turbmap.diag import DOMAIN  # noqa: E402
+from turbmap.msmfile import MsmFile  # noqa: E402
 
 
 def main(src, dst):
-    f = netcdf_file(src, "r", mmap=False)
-    lat, lon = f.variables["lat"][:].copy(), f.variables["lon"][:].copy()
+    f = MsmFile(src)                       # 新旧どちらの形式でも、緯度は北→南
+    lat, lon = f.lat, f.lon
 
     def rd(n):
-        v = f.variables[n]
-        return np.array(v[0], float) * v.scale_factor + v.add_offset
+        return f.read(n, 0)
 
     land = gaussian_filter((rd("psea") - rd("sp")) / 100, 1.0)
     cs = plt.contour(lon, lat, land, levels=[1.0])
