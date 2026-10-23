@@ -406,13 +406,17 @@ function loadUI(){try{var s=JSON.parse(localStorage.getItem(SKEY)||'null');if(!s
 var MW_FLOOR=0.2,MW_NONORO=0.35;
 // 変形場は「独立した揺れの原因」ではなく、モデルが表せない鋭いシアー(低Ri)の補正として使う
 var DF_ALONE=0.5,DF_RI_GAIN=0.5,DF_RI_MAX=1.5;
+// モデル自身が強いシアーを出している所では、鋭いシアーを補う必要がないので、変形場による低Riの強めを弱める
+// (VWS 6kt/1000ft=指数1.0 までは全部、9kt/1000ft=1.5 以上では強めない)
+var DF_RI_VW_FULL=1.0,DF_RI_VW_OFF=1.5;
 function mwHeightFactor(fl){return Math.max(MW_FLOOR,Math.min(1,1-(fl-120)/80*(1-MW_FLOOR)));}
 function totalCore(m,ii,df,ri,vw,cv,mi,fl,zf,o,mc){
   var mo=m*zf,mn=m*(1-zf),g=mwHeightFactor(fl);
   // 対流の上昇流・下降流も鉛直流の揺らぎとして現れるので、対流がある場所の重力波の分は対流の一部とみなす(二重計上を防ぐ)
   var cvq=withCloud&&cv>0?Math.min(1,cv/0.8):0;mn*=1-cvq;
   var mwE=mo*g+mn*MW_NONORO,mwS=mo+0.6*mn;     // mwE:単独の評価、mwS:他の要素と組み合わさるときの波の強さ
-  var riRaw=ri,dfB=Math.min(DF_RI_MAX,1+DF_RI_GAIN*Math.max(0,df));
+  var dfFade=Math.max(0,Math.min(1,(DF_RI_VW_OFF-vw)/(DF_RI_VW_OFF-DF_RI_VW_FULL)));
+  var riRaw=ri,dfB=Math.min(DF_RI_MAX,1+DF_RI_GAIN*Math.max(0,df)*dfFade);
   ri=ri*dfB;                                   // 変形場が強い所では、モデルの低Riは実際より弱く出ているとみて強める
   var riE=ri*Math.max(0.3,Math.min(1,vw/0.6));
   var iiE=ii*((ri>=0.5||vw>=0.5)?1:0.5);
@@ -434,8 +438,10 @@ function totalCore(m,ii,df,ri,vw,cv,mi,fl,zf,o,mc){
     if(ii>=0.8&&!(ri>=0.5||vw>=0.5)) N.push('− 慣性不安定だが成層が安定でシアーも弱いので割り引き');
     if(df>=0.8) N.push('− 変形場は単独では半分に評価(×'+DF_ALONE+')'+(vw<0.3?'。シアーもほぼないのでさらに割り引き':''));
     if(riRaw>=0.3&&dfB>1.05) N.push('+ 変形場で低Riを強める(×'+f2(dfB)+'。モデルが表せない鋭いシアーの補正)');
+    else if(riRaw>=0.3&&df>=0.5&&dfFade<1) N.push('− モデル自身のシアーが強いので、変形場による低Riの補正は'+(dfFade>0?'弱める':'しない'));
   }
-  if(ri>=0.6&&vw>=0.6){a=0.35*Math.min(riE,vw,2);v+=a;if(o)N.push('+ 低Ri × 強いシアー(ケルビン・ヘルムホルツ) +'+f2(a));}
+  // 低Ri × 強いシアー:Riにはシアーがすでに入っているので、加点しない(同じシアーの二重計上になる)
+  if(o&&ri>=0.6&&vw>=0.6) N.push('低Ri × 強いシアー(ケルビン・ヘルムホルツ):シアーはRiに含まれるので加点なし');
   if(mwS>=0.6){
     if(ri>=0.6){a=0.4*Math.min(mwS,ri,2);v+=a;if(o)N.push('+ 波 × 低Ri(波が砕ける) +'+f2(a));}
     if(vw>=0.6){a=0.25*Math.min(mwS,vw,2);v+=a;if(o)N.push('+ 波 × 強いシアー +'+f2(a));}
