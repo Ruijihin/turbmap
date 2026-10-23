@@ -4,6 +4,7 @@
   python -m turbmap.main --init auto --r2                 # 新しい初期値を探して処理し、R2へ
   python -m turbmap.main --init 2026102009 --out ./out    # 指定した初期値をローカルへ
   python -m turbmap.main --init 2026102009 --file MSM2026102009P.nc --sfile MSM2026102009S.nc --out ./out
+  python -m turbmap.main --init 2026102303 --file P1.bin,P2.bin --sfile S1.bin,S2.bin --out ./out   # GRIB2
 """
 import argparse
 import io
@@ -46,21 +47,25 @@ def iso(dt):
     return dt.strftime("%Y-%m-%dT%H:%MZ")
 
 
-def _fetch(init, kind):
-    tmp = tempfile.NamedTemporaryFile(suffix=f"{kind}.nc", delete=False)
-    tmp.close()
-    print(f"[{init}] ダウンロード: {rish.file_url(init, kind)}")
-    rish.download(init, tmp.name, kind)
-    return tmp.name
+def _fetch(init, kind, max_hour):
+    """必要なGRIB2ファイルを一時ファイルにダウンロードし、パスの並びを返す。"""
+    paths = []
+    for url in rish.file_urls(init, kind, max_hour):
+        tmp = tempfile.NamedTemporaryFile(suffix=f"{kind}.bin", delete=False)
+        tmp.close()
+        print(f"[{init}] ダウンロード: {url}")
+        rish.download(url, tmp.name)
+        paths.append(tmp.name)
+    return paths
 
 
 def process(init, store, nc_path=None, s_path=None, ft_max=33):
+    """nc_path・s_path は手元のファイル(NetCDFかGRIB2。GRIB2はカンマ区切りで複数)。省略するとダウンロードする。"""
     tmps = []
     if nc_path is None:
-        nc_path = _fetch(init, "P")
-        tmps.append(nc_path)
-        s_path = _fetch(init, "S")
-        tmps.append(s_path)
+        nc_path = _fetch(init, "P", ft_max)
+        s_path = _fetch(init, "S", ft_max + 1)
+        tmps = nc_path + s_path
     try:
         print(f"[{init}] 計算" + ("" if s_path else "(地上ファイルなし:雨を使わない)"))
         arr, aux, info = diag.compute_run(nc_path, s_path, ft_max=ft_max)
@@ -109,7 +114,7 @@ def update_index(store, new_entries, retention_days):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--init", default="auto", help="auto または YYYYMMDDHH(UTC)")
-    ap.add_argument("--file", help="手元のMSM気圧面ファイルを使う(--init と一緒に指定)")
+    ap.add_argument("--file", help="手元のMSM気圧面ファイルを使う(--init と一緒に指定。NetCDFかGRIB2。GRIB2はカンマ区切りで複数)")
     ap.add_argument("--sfile", help="手元のMSM地上ファイルを使う(--file と一緒に指定。省略すると雨を使わない)")
     ap.add_argument("--out", help="ローカルフォルダに出力する")
     ap.add_argument("--r2", action="store_true", help="Cloudflare R2 に出力する")
@@ -126,8 +131,8 @@ def main(argv=None):
 
     if a.init == "auto":
         done = {r["init"] for r in (store.get_json(INDEX_KEY) or {}).get("runs", [])}
-        todo = [i for i in rish.list_inits() if a.force or i not in done][: a.max_runs]
-        todo = [i for i in todo if rish.is_stable(i)]
+        todo = [i for i in rish.list_inits(a.ft_max) if a.force or i not in done][: a.max_runs]
+        todo = [i for i in todo if rish.is_stable(i, a.ft_max)]
         if not todo:
             print("新しい初期値はありません")
             return 0

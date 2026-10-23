@@ -59,3 +59,14 @@ class MsmFile:
 
     def close(self):
         self.f.close()
+
+
+def open_msm(path, names=None, max_hour=None):
+    """NetCDF(京大の変換)でもGRIB2(気象庁の元データ)でも開く。
+    path はファイル1つ、またはファイルの並び(リストかカンマ区切り。GRIB2は予報時間ごとに分かれている)。
+    names・max_hour はGRIB2のときだけ使う(読み込む量と予報時間を絞る)。"""
+    paths = list(path) if isinstance(path, (list, tuple)) else [p for p in str(path).split(",") if p]
+    from . import msmgrib
+    if msmgrib.is_grib(paths[0]):
+        return msmgrib.MsmGribFile(paths, names, max_hour)
+    return MsmFile(paths[0])

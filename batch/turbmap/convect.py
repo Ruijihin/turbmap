@@ -11,7 +11,7 @@ import numpy as np
 from scipy.io import netcdf_file
 from scipy.ndimage import gaussian_filter, maximum_filter
 
-from .msmfile import MsmFile
+from .msmfile import open_msm
 
 G0 = 9.80665
 
@@ -117,8 +117,11 @@ def column_weight(pa, pb, p_lfc, p_el):
 class MsmSurfaceFile:
     """地上ファイル(毎時)。地上気圧と1時間降水量を、気圧面の格子に合わせて返す。"""
 
-    def __init__(self, path):
-        self.m = MsmFile(path)              # 形式の違い(新旧)を吸収して、緯度は北→南で読む
+    NAMES = ["sp", "r1h", "u", "v", "ncld_low", "ncld_mid", "ncld_upper"]
+
+    def __init__(self, path, max_hour=None):
+        # 形式の違い(NetCDFの新旧・GRIB2)を吸収して、緯度は北→南で読む
+        self.m = open_msm(path, self.NAMES, max_hour)
         self.hours = self.m.hours
 
     def _rd(self, name, it):

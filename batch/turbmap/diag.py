@@ -9,7 +9,7 @@ from scipy.io import netcdf_file
 from scipy.ndimage import gaussian_filter, uniform_filter
 
 from . import convect
-from .msmfile import MsmFile
+from .msmfile import open_msm
 
 G0 = 9.80665
 RD = 287.05
@@ -60,11 +60,19 @@ def _esi(t):
     return 6.112 * np.exp(22.46 * (t - 273.15) / (t - 0.53))
 
 
-class MsmPressureFile(MsmFile):
-    """気圧面ファイル。形式の違い(新旧)は MsmFile が吸収する。"""
+class MsmPressureFile:
+    """気圧面ファイル。形式の違い(NetCDFの新旧・GRIB2)は open_msm が吸収する。"""
+
+    def __init__(self, path, max_hour=None):
+        self.m = open_msm(path, max_hour=max_hour)
+        self.lat, self.lon, self.lev = self.m.lat, self.m.lon, self.m.lev
+        self.hours, self.time_units = self.m.hours, self.m.time_units
 
     def read(self, name, it, p):
-        return super().read(name, it, self.lev.index(float(p)))
+        return self.m.read(name, it, self.lev.index(float(p)))
+
+    def close(self):
+        self.m.close()
 
 
 def cloud_top(levs, T, RH, sp):
@@ -104,8 +112,8 @@ def compute_run(path, spath=None, ft_min=3, ft_max=33):
     雨を使わずに上昇流だけで対流の兆候を見る。
     戻り値: (uint8配列[T,L,E,ny,nx], uint8配列[T,補助,ny,nx], 情報dict)
     """
-    m = MsmPressureFile(path)
-    sfc = convect.MsmSurfaceFile(spath) if spath else None
+    m = MsmPressureFile(path, max_hour=ft_max)
+    sfc = convect.MsmSurfaceFile(spath, max_hour=ft_max + 1) if spath else None
     lat, lon = m.lat, m.lon
     dy = np.deg2rad(lat[0] - lat[1]) * EARTH_R           # 緯度は北から南の順
     dx = np.deg2rad(lon[1] - lon[0]) * EARTH_R * np.cos(np.deg2rad(lat))[:, None]

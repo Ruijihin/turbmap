@@ -15,11 +15,11 @@ from scipy.ndimage import gaussian_filter  # noqa: E402
 
 sys.path.insert(0, __file__.rsplit("scripts", 1)[0])
 from turbmap.diag import DOMAIN  # noqa: E402
-from turbmap.msmfile import MsmFile  # noqa: E402
+from turbmap.msmfile import open_msm  # noqa: E402
 
 
 def main(src, dst):
-    f = MsmFile(src)                       # 新旧どちらの形式でも、緯度は北→南
+    f = open_msm(src)                      # NetCDFの新旧・GRIB2のどれでも、緯度は北→南
     lat, lon = f.lat, f.lon
 
     def rd(n):

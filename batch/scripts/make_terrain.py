@@ -16,7 +16,7 @@ from scipy.ndimage import gaussian_filter
 
 sys.path.insert(0, __file__.rsplit("scripts", 1)[0])
 from turbmap.diag import DOMAIN  # noqa: E402
-from turbmap.msmfile import MsmFile  # noqa: E402
+from turbmap.msmfile import open_msm  # noqa: E402
 
 HEIGHT_THRESHOLD_M = 400      # これより高い所を「山」とみなす
 SMOOTH_CELLS = 2.0            # 地形を平滑化する幅(約25km)
@@ -25,7 +25,7 @@ FULL_AT = 0.3                 # 影響の強さがこの値以上で「完全に
 
 
 def main(src, outdir):
-    f = MsmFile(src)                       # 新旧どちらの形式でも、緯度は北→南
+    f = open_msm(src)                      # NetCDFの新旧・GRIB2のどれでも、緯度は北→南
     lat = f.lat[::2]                        # 地上ファイルは気圧面の2倍の細かさ
     lon = f.lon[::2]
 
