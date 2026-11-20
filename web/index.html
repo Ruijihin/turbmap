@@ -563,7 +563,8 @@ function loadRun(init){
 }
 function loadField(init,k){
   var key=init+'/'+k; if(dataCache[key]) return Promise.resolve(dataCache[key]);
-  var m=metaCache[init]; return loadPng(CFG.dataBase+'runs/'+init+'/'+m.files[k]).then(function(d){dataCache[key]=d;return d;});
+  // 作り直したデータを古いキャッシュと区別するため、作成時刻を付ける
+  var m=metaCache[init]; return loadPng(CFG.dataBase+'runs/'+init+'/'+m.files[k]+'?v='+encodeURIComponent(m.generated||'')).then(function(d){dataCache[key]=d;return d;});
 }
 function busy(on,msg){var l=$('loading');l.hidden=!on;if(msg)l.textContent=msg;}
 function fail(e){busy(true);$('loading').innerHTML='<span class="err">データを読み込めませんでした。時間をおいて再読み込みしてください。('+(e&&e.message||e)+')</span>';}

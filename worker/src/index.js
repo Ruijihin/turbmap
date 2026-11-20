@@ -14,11 +14,12 @@ export default {
       if (!/^(index\.json|routes\/routes\.json|runs\/\d{10}\/(meta\.json|ft\d{2}\.png))$/.test(key)) {
         return new Response("Not Found", { status: 404 });
       }
-      // 予報のデータ(runs/…)は書き換えないので、利用者に近いCloudflareの拠点にキャッシュする。
-      // 毎回R2(海外にあることもある)まで取りに行かずに済む。一覧(index.json)は更新されるので短時間だけ
-      const immutable = key.startsWith("runs/");
+      // 予報の数値データ(ftXX.png)は、利用者に近いCloudflareの拠点にキャッシュする(毎回R2まで取りに行かない)。
+      // 作り直したときは、画面がURLに作成時刻(?v=)を付けるので、別のものとしてキャッシュされる。
+      // 一覧(index.json)と meta.json は作り直しで変わるので、拠点では60秒だけ、ブラウザは毎回確認
+      const immutable = /\.png$/.test(key);
       const cache = caches.default;
-      const ckey = new Request(url.origin + url.pathname, { method: "GET" });
+      const ckey = new Request(url.origin + "/c2" + url.pathname + url.search, { method: "GET" });
       let res = await cache.match(ckey);
       if (!res) {
         const obj = await env.BUCKET.get(key);
@@ -28,6 +29,7 @@ export default {
         headers.set("etag", obj.httpEtag);
         if (!headers.has("cache-control")) headers.set("cache-control", "no-cache");
         headers.set("x-turbmap-cache", "miss");
+        if (!immutable) headers.set("cache-control", "no-cache");
         res = new Response(obj.body, { headers });
         const edge = new Response(res.clone().body, res);
         edge.headers.set("cache-control", immutable ? "public, max-age=31536000, immutable" : "public, max-age=60");
