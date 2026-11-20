@@ -68,7 +68,7 @@ def process(init, store, nc_path=None, s_path=None, ft_max=33):
         tmps = nc_path + s_path
     try:
         print(f"[{init}] 計算" + ("" if s_path else "(地上ファイルなし:雨を使わない)"))
-        arr, aux, info = diag.compute_run(nc_path, s_path, ft_max=ft_max)
+        arr, aux, wind, info = diag.compute_run(nc_path, s_path, ft_max=ft_max)
     finally:
         for t in tmps:
             os.unlink(t)
@@ -81,7 +81,7 @@ def process(init, store, nc_path=None, s_path=None, ft_max=33):
     files, total = [], 0
     # 予報時刻ごとに1ファイル(ページは選んだ時刻の分だけ読み込む)
     for k, ft in enumerate(info["ft"]):
-        png = pack_png(np.concatenate([arr[k].ravel(), aux[k].ravel()]))
+        png = pack_png(np.concatenate([arr[k].ravel(), aux[k].ravel(), wind[k].ravel()]))
         name = f"ft{ft:02d}.png"
         store.put(prefix + name, png, "image/png", "public, max-age=31536000, immutable")
         files.append(name)

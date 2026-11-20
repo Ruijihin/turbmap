@@ -19,8 +19,8 @@ EARTH_R = 6371e3
 # 上下の気圧面の組(hPa)。層の値はこの2面の間の量。
 # 950〜700hPaの4層(FL025〜085)は低高度用。地面より下にかかる層は値を0にする
 LAYER_PAIRS = [(950, 900), (900, 850), (850, 800), (800, 700), (700, 600), (600, 500), (500, 400), (400, 300), (300, 250), (250, 200), (200, 150)]
-ELEMS = ["mw", "ii", "df", "ri", "vws", "rhi", "cv", "mi"]
-MISSING_ELEMS = ["rhi", "mi"]          # 湿度を使うので、300hPaより上は「データなし」
+ELEMS = ["mw", "ii", "df", "ri", "vws", "rhi", "cv", "mi", "rm"]
+MISSING_ELEMS = ["rhi", "mi", "rm"]          # 湿度を使うので、300hPaより上は「データなし」
 # 補助の量:名前と、画素値に掛けると元の単位になる係数
 AUX = [("cape", 40.0), ("el_fl", 2.0), ("rain", 0.2), ("wup", 0.02), ("wind10", 0.5),   # J/kg, FL, mm/h, m/s, kt
        ("ctop", 2.0), ("ctop_lo", 2.0), ("ctop_hi", 2.0), ("ctop_dry", 0.5),          # 推定雲頂 FL(帯の下・上)、雲頂のすぐ上の氷相対湿度 %
@@ -42,6 +42,7 @@ THRESH = {
 # MSM気圧面の湿度は300hPaまでしか実データが無い(250hPa以上は全マスが一定値75%)。
 RH_MIN_P = 300
 RH_MISSING = 255   # 数値データ中の「データなし」の印(通常の値は0〜254)
+WIND_MISSING = 255
 
 DOMAIN = {"lat_min": 22.4, "lat_max": 46.0, "lon_min": 120.0, "lon_max": 147.0}
 
@@ -58,6 +59,43 @@ def _esw(t):
 
 def _esi(t):
     return 6.112 * np.exp(22.46 * (t - 273.15) / (t - 0.53))
+
+
+# 雲の中の低Ri(湿ったRi)。飽和した空気は上下に動くと凝結・蒸発の熱が出入りするので、
+# 実際の安定度は乾燥空気として計算した値より小さい。飽和に近い層では、湿った空気の安定度でRiを出し直す
+RM_SAT_LO, RM_SAT_HI = 92.0, 98.0   # 飽和度(%)。上下の面の小さいほうがこの間で 0→1 に効かせる
+RM_RI_FLOOR = 0.5                   # 指数の上限を 0.75/0.5=1.5(並〜強)にする。不安定そのものは雲中の湿潤不安定と対流で見る
+LV, CP, EPS = 2.5e6, 1004.0, 0.622
+
+
+def _saturation(rh, t):
+    """飽和度(%)。0℃より低いときは氷に対する相対湿度"""
+    return np.where(t < 273.15, rh * _esw(t) / _esi(t), rh)
+
+
+def moist_ri(ta, tb, rha, rhb, za, zb, pa, pb, n2_dry, s2):
+    """雲の中の低Riの指数。Durran & Klemp (1982) の飽和空気のブラント・バイサラ振動数を使う。
+    飽和度に応じて乾燥空気の安定度と混ぜ、Riの目安(0.75)との比を返す(上限1.5)。"""
+    dz = zb - za
+    tm = (ta + tb) / 2
+    pm = (pa + pb) / 2
+
+    def qs(t, p):
+        e = _esw(t)
+        return EPS * e / (p - e)
+
+    qa, qb, qm = qs(ta, pa), qs(tb, pb), qs(tm, pm)
+    tha, thb = ta * (1000 / pa) ** 0.2857, tb * (1000 / pb) ** 0.2857
+    dlnth = (np.log(thb) - np.log(tha)) / dz
+    dqs = (qb - qa) / dz
+    a = (1 + LV * qm / (RD * tm)) / (1 + EPS * LV ** 2 * qm / (CP * RD * tm ** 2))
+    n2_moist = G0 * (a * (dlnth + LV / (CP * tm) * dqs) - dqs)
+    sat = np.minimum(_saturation(rha, ta), _saturation(rhb, tb))
+    w = np.clip((sat - RM_SAT_LO) / (RM_SAT_HI - RM_SAT_LO), 0, 1)
+    n2 = (1 - w) * n2_dry + w * n2_moist
+    ri = n2 / np.maximum(s2, 1e-10)
+    idx = THRESH["ri"] / np.maximum(ri, RM_RI_FLOOR)
+    return np.where(w > 0, idx, 0.0)
 
 
 class MsmPressureFile:
@@ -110,7 +148,7 @@ def compute_run(path, spath=None, ft_min=3, ft_max=33):
 
     MSMのFT=0は鉛直流がゼロなので使わない。ft_max より先の予報時刻は計算しない。spath(地上ファイル)が無いときは、
     雨を使わずに上昇流だけで対流の兆候を見る。
-    戻り値: (uint8配列[T,L,E,ny,nx], uint8配列[T,補助,ny,nx], 情報dict)
+    戻り値: (uint8配列[T,L,E,ny,nx], uint8配列[T,補助,ny,nx], uint8配列[T,L,2(風速kt・風向/2),ny,nx], 情報dict)
     """
     m = MsmPressureFile(path, max_hour=ft_max)
     sfc = convect.MsmSurfaceFile(spath, max_hour=ft_max + 1) if spath else None
@@ -131,6 +169,8 @@ def compute_run(path, spath=None, ft_min=3, ft_max=33):
 
     out = np.zeros((len(t_idx), len(LAYER_PAIRS), len(ELEMS), len(jj), len(ii)), dtype=np.uint8)
     aux_out = np.zeros((len(t_idx), len(AUX), len(jj), len(ii)), dtype=np.uint8)
+    # 風(矢羽の表示用)。層ごとに上下の面の平均の風を、風速(kt)と風向(2°刻み)で持つ。255はデータなし(地面より下)
+    wind_out = np.full((len(t_idx), len(LAYER_PAIRS), 2, len(jj), len(ii)), WIND_MISSING, dtype=np.uint8)
     sm = lambda x: gaussian_filter(x, 1.5)
     levs = m.lev                                           # 下→上(1000→100hPa)
 
@@ -192,13 +232,18 @@ def compute_run(path, spath=None, ft_min=3, ft_max=33):
                 "rhi": rhi_max / 100,
                 "cv": cv_layers[a_l],
                 "mi": convect.moist_instability(ta, tb, rha, rhb, za, zb, pa, pb, rhi),
+                "rm": moist_ri(ta, tb, rha, rhb, za, zb, pa, pb, n2, s2),
             }
+            um_s, vm_s = um[np.ix_(jj, ii)], vm[np.ix_(jj, ii)]
+            wind_out[a_t, a_l, 0] = np.clip(np.round(np.hypot(um_s, vm_s) * 1.94384), 0, 254).astype(np.uint8)
+            wind_out[a_t, a_l, 1] = (np.round((np.degrees(np.arctan2(-um_s, -vm_s)) % 360) / 2) % 180).astype(np.uint8)
             for a_e, e in enumerate(ELEMS):
                 x = score[e][np.ix_(jj, ii)]
                 out[a_t, a_l, a_e] = np.clip(np.round(x * 100), 0, 254).astype(np.uint8)
             if sfc:   # 層の下の面が地面より下にある所(山岳部)は、外挿された値なので0にする
                 under = (sp < pa + 5)[np.ix_(jj, ii)]
                 out[a_t, a_l][:, under] = 0
+                wind_out[a_t, a_l][:, under] = WIND_MISSING
             if min(pa, pb) < RH_MIN_P:
                 # MSMの湿度は300hPaより上では欠測(全マスが一定値)なので、氷相対湿度は「データなし」にする
                 for e in MISSING_ELEMS:
@@ -227,10 +272,12 @@ def compute_run(path, spath=None, ft_min=3, ft_max=33):
         "missing_elems": MISSING_ELEMS,
         "aux": [a for a, _ in AUX],
         "aux_scale": [s for _, s in AUX],
+        "wind": {"layout": "層ごとに[風速, 風向]。数値データの補助の量の後ろ", "speed_unit": "kt",
+                 "dir_step": 2, "missing": WIND_MISSING},
         "thresholds": dict(THRESH, **convect.THRESH_CV),
         "surface": bool(sfc),
     }
     m.close()
     if sfc:
         sfc.close()
-    return out, aux_out, info
+    return out, aux_out, wind_out, info

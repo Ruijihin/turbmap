@@ -224,6 +224,7 @@ details.doc ol,details.doc ul{margin:6px 0 0;padding-left:1.4em;display:flex;fle
       <label class="tog" title="VWSの等値線(6kt点線・9kt細線・12kt太線)。地図と断面に重ねる"><input type="checkbox" id="vwsl" checked>VWS線</label>
       <label class="tog"><input type="checkbox" id="apt" checked>空港</label>
       <label class="tog" title="雲の可能性。FL300付近までは氷相対湿度(上下の気圧面の大きいほう)と推定雲頂から、それより上はモデルの上層雲量から(白抜きの点)。断面には推定雲頂の線と帯を描く"><input type="checkbox" id="cloud">雲</label>
+      <label class="tog" title="風向・風速の矢羽(短い羽5kt、長い羽10kt、旗50kt)。地図と断面に重ねる"><input type="checkbox" id="wind">風</label>
       <label class="tog" id="pireprow" hidden><input type="checkbox" id="pirep" checked>揺れの報告</label>
     </div>
     <div class="mapbody" id="mapbody">
@@ -313,6 +314,7 @@ details.doc ol,details.doc ul{margin:6px 0 0;padding-left:1.4em;display:flex;fle
   <div class="isec" id="ielems"></div>
   <div class="isec">
     <dl class="kv" style="margin:0">
+      <dt>風</dt><dd id="iwind">—</dd>
       <dt>CAPE</dt><dd id="icape">—</dd>
       <dt>推定雲頂</dt><dd id="ictop">—</dd>
       <dt>雲量</dt><dd id="icld">—</dd>
@@ -337,7 +339,8 @@ details.doc ol,details.doc ul{margin:6px 0 0;padding-left:1.4em;display:flex;fle
   <h2 style="margin-top:8px">総合の揺れやすさの求め方</h2>
   <ol class="note">
     <li><b>波の扱いを決める</b>:鉛直流の揺らぎ(σw)は、そのままでは揺れではなく空気の波です。標高400m超の場所と周辺約50kmの波を山岳波、それ以外を重力波とし、単独の評価は山岳波が高度で下がり(FL120で1.0倍、FL200以上で0.2倍)、重力波は0.35倍です。他の不安定要素と組み合わさるときは、高度によらず波の強さ(山岳波1.0倍、重力波0.6倍)を使います。</li>
-    <li><b>揺れる雲</b>(「CAT+揺れる雲」のとき):対流は、浮力(CAPE)と実際の対流の兆候(強い雨・雲の中の強い上昇流)がそろったときだけ大きくなり、雲底〜雲頂と雲頂のすぐ上で評価します。雲中の湿潤不安定は、飽和に近い層が湿った空気として不安定なときに大きくなります(FL300付近まで)。</li>
+    <li><b>揺れる雲</b>(「CAT+揺れる雲」のとき):対流は、浮力(CAPE)と実際の対流の兆候(強い雨・雲の中の強い上昇流)がそろったときだけ大きくなり、雲底〜雲頂と雲頂のすぐ上で評価します。雲中の湿潤不安定は、飽和に近い層が湿った空気として不安定なときに大きくなります(FL300付近まで)。雲中のシアーは、飽和した層では凝結の熱で実際の安定度が小さくなることを考えたリチャードソン数で、湿った空気としてほぼ中立な雲の中に強いシアーがかかる所で大きくなります(上限1.5、FL300付近まで)。</li>
+    <li><b>風</b>(「風」のチェック):地図の高度の風向・風速を矢羽で示します(短い羽5kt、長い羽10kt、旗50kt)。断面にもFL040ごとに並べます。断面の矢羽も北が上の向きです。</li>
     <li><b>割り引く</b>:低Riでもシアーが弱いときは最大7割引き、慣性不安定でも成層が安定でシアーが弱いときは半分、変形場でもシアーがほぼないときは4割引きにします。</li>
     <li><b>土台を決める</b>:各要素のうち最も強いものに、2番目の2割を足します。</li>
     <li><b>上乗せする</b>:強め合う組み合わせ(低Ri×シアー、波×低Ri、対流×シアーなど)では、弱い方に係数を掛けて足します。</li>
@@ -364,6 +367,7 @@ var EL=[
   {k:'vws',nm:'VWS(参考)',s:'VWS',ref:true,c:[105,115,130],cd:[160,170,185],unit:function(s){return 'VWS '+(s*6).toFixed(1)+' kt/1000ft';},on:false},
   {k:'cv',nm:'対流',s:'対流',cloud:true,c:[0,105,190],cd:[90,170,255],unit:function(s){return '浮力×対流の兆候';},on:true},
   {k:'mi',nm:'雲中の湿潤不安定',s:'湿潤不安定',cloud:true,c:[150,110,0],cd:[225,185,60],unit:function(s){return isNaN(s)?'データなし(FL300より上)':'湿潤N² −'+(s*6).toFixed(1)+'×10⁻⁵';},on:true},
+  {k:'rm',nm:'雲中のシアー(湿ったRi)',s:'雲中シアー',cloud:true,c:[0,130,160],cd:[70,200,225],unit:function(s){return isNaN(s)?'データなし(FL300より上)':s<=0.01?'雲の外か、安定':'湿ったRi '+(0.75/s).toFixed(2);},on:true},
   {k:'mech',nm:'地表付近の乱れ',s:'地表の乱れ',c:[110,90,60],cd:[200,175,130],unit:function(s){var a=probeAux;return a&&a.w10!=null?'地上風 '+Math.round(a.w10)+' kt(地形・高度で補正)':'地上風×地形';},on:true}
 ];
 var VIEWS=[
@@ -397,10 +401,10 @@ function fmtLon(v){return v.toFixed(2)+'°E';}
 
 /* 設定の記憶(このブラウザだけ) */
 var SKEY='turbmap.ui.v2';
-function saveUI(){try{localStorage.setItem(SKEY,JSON.stringify({fl:cur.fl,view:cur.view,mode:cur.mode,scope:withCloud,target:target,apt:$('apt').checked,vwsl:$('vwsl').checked,secMode:secMode,on:EL.map(function(e){return e.on;})}));}catch(e){}}
+function saveUI(){try{localStorage.setItem(SKEY,JSON.stringify({fl:cur.fl,view:cur.view,mode:cur.mode,scope:withCloud,target:target,apt:$('apt').checked,vwsl:$('vwsl').checked,wind:$('wind').checked,secMode:secMode,on:EL.map(function(e){return e.on;})}));}catch(e){}}
 function loadUI(){try{var s=JSON.parse(localStorage.getItem(SKEY)||'null');if(!s) return;
   if(s.fl>=FLMIN&&s.fl<=FLMAX) cur.fl=s.fl; if(s.view) cur.view=s.view; if(s.mode) cur.mode=s.mode; if(s.scope!=null) withCloud=s.scope;
-  if(s.target) target=s.target; if(s.apt!=null) $('apt').checked=s.apt; if(s.vwsl!=null) $('vwsl').checked=s.vwsl; if(s.secMode) secMode=s.secMode; if(s.on&&s.on.length===EL.length) EL.forEach(function(e,i){e.on=!!s.on[i];});}catch(e){}}
+  if(s.target) target=s.target; if(s.apt!=null) $('apt').checked=s.apt; if(s.vwsl!=null) $('vwsl').checked=s.vwsl; if(s.wind!=null) $('wind').checked=s.wind; if(s.secMode) secMode=s.secMode; if(s.on&&s.on.length===EL.length) EL.forEach(function(e,i){e.on=!!s.on[i];});}catch(e){}}
 
 /* ===== 総合:組み合わせを考慮した揺れやすさ(1.0=並) ===== */
 var MW_FLOOR=0.2,MW_NONORO=0.35;
@@ -410,7 +414,7 @@ var DF_ALONE=0.5,DF_RI_GAIN=0.5,DF_RI_MAX=1.5;
 // (VWS 6kt/1000ft=指数1.0 までは全部、9kt/1000ft=1.5 以上では強めない)
 var DF_RI_VW_FULL=1.0,DF_RI_VW_OFF=1.5;
 function mwHeightFactor(fl){return Math.max(MW_FLOOR,Math.min(1,1-(fl-120)/80*(1-MW_FLOOR)));}
-function totalCore(m,ii,df,ri,vw,cv,mi,fl,zf,o,mc){
+function totalCore(m,ii,df,ri,vw,cv,mi,fl,zf,o,mc,rm){
   var mo=m*zf,mn=m*(1-zf),g=mwHeightFactor(fl);
   // 対流の上昇流・下降流も鉛直流の揺らぎとして現れるので、対流がある場所の重力波の分は対流の一部とみなす(二重計上を防ぐ)
   var cvq=withCloud&&cv>0?Math.min(1,cv/0.8):0;mn*=1-cvq;
@@ -421,14 +425,18 @@ function totalCore(m,ii,df,ri,vw,cv,mi,fl,zf,o,mc){
   var riE=ri*Math.max(0.3,Math.min(1,vw/0.6));
   var iiE=ii*((ri>=0.5||vw>=0.5)?1:0.5);
   var dfE=DF_ALONE*df*(vw>=0.3?1:0.6);
+  // 雲の中の低Ri(湿った空気の安定度で出したRi)。乾燥空気の低Riと同じ現象なので、大きいほうだけを使う。
+  // 変形場での強めや、他の要素との組み合わせの上乗せには使わない(上限1.5のまま)
+  var rmE=withCloud&&rm>0?rm*Math.max(0.3,Math.min(1,vw/0.6)):0,riC=riE,riDom=3;
+  if(rmE>riE){riC=rmE;riDom=7;}
   var mx=mwE,s2=0,dom=0;
   if(iiE>mx){s2=mx;mx=iiE;dom=1;}else if(iiE>s2){s2=iiE;}
   if(dfE>mx){s2=mx;mx=dfE;dom=2;}else if(dfE>s2){s2=dfE;}
-  if(riE>mx){s2=mx;mx=riE;dom=3;}else if(riE>s2){s2=riE;}
+  if(riC>mx){s2=mx;mx=riC;dom=riDom;}else if(riC>s2){s2=riC;}
   var cvv=withCloud&&cv>0?cv:0,miv=withCloud&&mi>0?mi:0;   // NaN(湿度のデータなし)は0
   if(cvv>mx){s2=mx;mx=cvv;dom=5;}else if(cvv>s2){s2=cvv;}
   if(miv>mx){s2=mx;mx=miv;dom=6;}else if(miv>s2){s2=miv;}
-  if(mc>mx){s2=mx;mx=mc;dom=7;}else if(mc>s2){s2=mc;}   // 地表付近の乱れ(機械的)
+  if(mc>mx){s2=mx;mx=mc;dom=8;}else if(mc>s2){s2=mc;}   // 地表付近の乱れ(機械的)
   var v=mx+0.2*s2,a,N=o?o.notes:null,f2=function(x){return x.toFixed(2);};
   if(o){
     if(m>=0.8&&mo>=mn&&g<0.6) N.push('− 波(地形性)だが高度が高いので単独では割り引き(×'+f2(g)+')');
@@ -456,7 +464,7 @@ function totalCore(m,ii,df,ri,vw,cv,mi,fl,zf,o,mc){
   if(o){o.v=v;o.dom=dom;}
   return v;
 }
-function total(m,ii,df,ri,vw,cv,mi,fl,zf,mc){var o={notes:[],v:0,dom:0};totalCore(m,ii,df,ri,vw,cv,mi,fl,zf,o,mc);return o;}
+function total(m,ii,df,ri,vw,cv,mi,fl,zf,mc,rm){var o={notes:[],v:0,dom:0};totalCore(m,ii,df,ri,vw,cv,mi,fl,zf,o,mc,rm);return o;}
 function totColor(v,dk){
   if(!(v>=0.5)) return null; var S=dk?TD:TL,st=[0.5,0.8,1.2,1.6];
   if(v>=1.6) return {c:S[3],a:0.95};
@@ -477,6 +485,48 @@ function mechField(f){
 }
 /* 地形の影響圏(terrain.png)。無いとき・格子が合わないときは、すべて地形性として扱う */
 function zfAt(k){return TZ&&TZ.length===M.nx*M.ny?TZ[k]:1;}
+/* 風(矢羽用)。数値データの補助の量の後ろに、層ごとの[風速kt, 風向/2]がある。高度は層の中央の間で、u・v で補間する */
+function windAt(k,fl){
+  if(!M||!M.wind||!D||k<0) return null;
+  var N=M.nx*M.ny,L=M.layers.length,base=(L*M.elems.length+M.aux.length)*N,mf=M.mid_fl,st=M.wind.dir_step,ms=M.wind.missing;
+  var uv=function(l){var s=D[base+(l*2)*N+k],d=D[base+(l*2+1)*N+k]*st;if(s===ms) return null;var r=d*Math.PI/180;return [-s*Math.sin(r),-s*Math.cos(r)];};
+  var l0=0,w=0;
+  if(fl<=mf[0]){l0=0;w=0;}else if(fl>=mf[L-1]){l0=L-1;w=0;}
+  else{for(var i=0;i<L-1;i++){if(fl>=mf[i]&&fl<=mf[i+1]){l0=i;w=(fl-mf[i])/(mf[i+1]-mf[i]);break;}}}
+  var a=uv(l0),b=w>0?uv(l0+1):a;if(!a||!b) return null;
+  var u=a[0]*(1-w)+b[0]*w,v=a[1]*(1-w)+b[1]*w;
+  return {s:Math.hypot(u,v),d:(Math.atan2(-u,-v)*180/Math.PI+360)%360};
+}
+/* 矢羽を1本描く。(x,y)は根元、ux,uy は風上へ向かう画面上の単位ベクトル、len は軸の長さ。
+   北半球の決まりで、羽は軸の時計回り側に付ける。短い羽5kt、長い羽10kt、旗50kt。3kt未満は丸 */
+function barb(o,x,y,ux,uy,spd,len){
+  var s=Math.round(spd/5)*5;
+  if(s<5){o.beginPath();o.arc(x,y,len*0.13,0,7);o.stroke();return;}
+  var px=-uy,py=ux,F=len*0.42,gap=len*0.14,tx=x+ux*len,ty=y+uy*len;
+  o.beginPath();o.moveTo(x,y);o.lineTo(tx,ty);o.stroke();
+  var t=0,n50=Math.floor(s/50),n10=Math.floor((s%50)/10),n5=(s%10)>=5?1:0;
+  for(var i=0;i<n50;i++){var ax=tx-ux*t,ay=ty-uy*t;
+    o.beginPath();o.moveTo(ax,ay);o.lineTo(ax+px*F+ux*F*0.15,ay+py*F+uy*F*0.15);o.lineTo(ax-ux*gap*1.4,ay-uy*gap*1.4);o.closePath();o.fill();t+=gap*1.6;}
+  if(n50&&!n10&&!n5) return;
+  if(n50) t+=gap*0.2;
+  for(var j=0;j<n10;j++){var bx=tx-ux*t,by=ty-uy*t;o.beginPath();o.moveTo(bx,by);o.lineTo(bx+px*F+ux*F*0.35,by+py*F+uy*F*0.35);o.stroke();t+=gap;}
+  if(n5){if(!n50&&!n10) t+=gap;var cx=tx-ux*t,cy=ty-uy*t;o.beginPath();o.moveTo(cx,cy);o.lineTo(cx+px*F*0.5+ux*F*0.18,cy+py*F*0.5+uy*F*0.18);o.stroke();}
+}
+/* 地図に矢羽を並べる(画面上でほぼ等間隔) */
+function drawWindBarbs(o,dpr,dk){
+  if(!M||!M.wind) return;
+  var sp=58*dpr,len=25*dpr,col=dk?'rgba(240,244,248,.92)':'rgba(20,28,40,.88)',halo=dk?'rgba(0,0,0,.55)':'rgba(255,255,255,.75)';
+  var items=[];
+  for(var y=sp/2;y<P.H;y+=sp)for(var x=sp/2;x<P.W;x+=sp){
+    var lon=P.b[0]+x/P.W*(P.b[1]-P.b[0]),lat=P.b[3]-y/P.H*(P.b[3]-P.b[2]),k=gridIndex(lat,lon),w=windAt(k,cur.fl);
+    if(!w) continue;
+    var r=w.d*Math.PI/180,gx=Math.sin(r)/Math.cos(lat*Math.PI/180)*(X(lon+1)-X(lon)),gy=Math.cos(r)*(Y(lat+1)-Y(lat)),nn=Math.hypot(gx,gy)||1;
+    items.push([x,y,gx/nn,gy/nn,w.s]);}
+  o.lineCap='round';o.lineJoin='round';
+  [[halo,3.2*dpr],[col,1.3*dpr]].forEach(function(st){o.strokeStyle=st[0];o.fillStyle=st[0];o.lineWidth=st[1];
+    items.forEach(function(it){barb(o,it[0],it[1],it[2],it[3],it[4],len);});});
+  o.lineCap='butt';o.lineJoin='miter';
+}
 /* 補助の量(CAPE・雲頂・雨・上昇流)。数値データの末尾にある2次元の量 */
 function auxAt(k){
   if(!M||!M.aux||!D) return null;var N=M.nx*M.ny,base=M.layers.length*M.elems.length*N,g=function(nm){var i=M.aux.indexOf(nm);return i<0?null:D[base+i*N+k]*M.aux_scale[i];};
@@ -656,6 +706,7 @@ VIEWS.forEach(function(v){var o=document.createElement('option');o.value=v.k;o.t
 $('view').addEventListener('change',function(){cur.view=$('view').value;saveUI();layout();draw();});
 $('pirep').addEventListener('change',function(){drawOverlay();});
 $('cloud').addEventListener('change',function(){drawOverlay();saveUI();updateSec();});
+$('wind').addEventListener('change',function(){drawOverlay();saveUI();updateSec();renderInfo();});
 $('vwsl').addEventListener('change',function(){saveUI();paintLegend();drawOverlay();secKey='';updateSec();});
 $('apt').addEventListener('change',function(){saveUI();drawOverlay();});
 
@@ -698,7 +749,7 @@ function draw2d(){
   var fa=fieldsAt(cur.fl),F=fa.F;
   for(var k=0;k<n;k++){
     var r=bg[0],g=bg[1],b=bg[2];
-    if(cur.mode==='total'){var tc=totColor(totalCore(F.mw[k],F.ii[k],F.df[k],F.ri[k],F.vws[k],F.cv[k],F.mi[k],cur.fl,zfAt(k),null,F.mech[k]),dk);
+    if(cur.mode==='total'){var tc=totColor(totalCore(F.mw[k],F.ii[k],F.df[k],F.ri[k],F.vws[k],F.cv[k],F.mi[k],cur.fl,zfAt(k),null,F.mech[k],F.rm[k]),dk);
       if(tc){r=r*(1-tc.a)+tc.c[0]*tc.a;g=g*(1-tc.a)+tc.c[1]*tc.a;b=b*(1-tc.a)+tc.c[2]*tc.a;}}
     else{for(var i=0;i<EL.length;i++){var e=EL[i];if(!e.on) continue;
       var a=Math.max(0,Math.min(1,(F[e.k][k]-0.5)/1.1))*0.92;if(!(a>0)) continue;   // 0.5(弱)から色を付ける。NaNは塗らない
@@ -733,6 +784,7 @@ function drawOverlay(){
   for(var lo=Math.ceil(P.b[0]/gs)*gs;lo<=P.b[1];lo+=gs){o.beginPath();o.moveTo(X(lo),0);o.lineTo(X(lo),P.H);o.stroke();o.fillText(lo+'°E',X(lo)+3*dpr,P.H-5*dpr);}
   for(var la=Math.ceil(P.b[2]/gs)*gs;la<=P.b[3];la+=gs){o.beginPath();o.moveTo(0,Y(la));o.lineTo(P.W,Y(la));o.stroke();o.fillText(la+'°N',4*dpr,Y(la)-4*dpr);}
   o.setLineDash([]);
+  if($('wind').checked) drawWindBarbs(o,dpr,dk);
   if($('apt').checked){
     o.font=(10*dpr)+'px '+css('--mono');o.textBaseline='middle';
     APTS.forEach(function(a){var x=X(a.lon),y=Y(a.lat);if(x<0||y<0||x>P.W||y>P.H) return;
@@ -840,11 +892,11 @@ function renderInfo(){
   st.textContent=!probe.active?'—':probe.pinned?'📌 固定中':probe.dist!=null?'断面上':'カーソル';
   st.classList.toggle('pin',probe.pinned);$('iunpin').disabled=!probe.pinned;
   var k=probe.active&&M&&D?gridIndex(probe.lat,probe.lon):-1;
-  if(k<0){['ipos','ifl','itime','idist','itot','icat','idom','icape','ictop','icld','iel','irain','iwup','iw10','irhi'].forEach(function(id){setText(id,'—');});
+  if(k<0){['ipos','ifl','itime','idist','itot','icat','idom','iwind','icape','ictop','icld','iel','irain','iwup','iw10','irhi'].forEach(function(id){setText(id,'—');});
     $('itbar').style.width='0';$('icombo').textContent='—';
     EL.forEach(function(e){var r=$('ie_'+e.k);r.querySelector('.v').textContent='—';r.querySelector('.vbar i').style.width='0';r.querySelector('.u').textContent='—';});return;}
   var fl=probe.fl==null?cur.fl:probe.fl,fa=fieldsAt(fl),F=fa.F;
-  probeAux=auxAt(k);var t=total(F.mw[k],F.ii[k],F.df[k],F.ri[k],F.vws[k],F.cv[k],F.mi[k],fl,zfAt(k),F.mech[k]),j=jstp(M.valid[cur.k]);
+  probeAux=auxAt(k);var t=total(F.mw[k],F.ii[k],F.df[k],F.ri[k],F.vws[k],F.cv[k],F.mi[k],fl,zfAt(k),F.mech[k],F.rm[k]),j=jstp(M.valid[cur.k]);
   setText('ipos',fmtLat(probe.lat)+' '+fmtLon(probe.lon));
   setText('ifl','FL'+pad(fl,3)+(probe.fl!=null&&probe.fl!==cur.fl?'(地図はFL'+pad(cur.fl,3)+')':''));
   setText('itime',j.mo+'/'+j.d+' '+pad(j.h,2)+'時 FT'+pad(M.ft[cur.k],2));
@@ -857,6 +909,7 @@ function renderInfo(){
     r.querySelector('.v').textContent=!has||isNaN(s)?'—':s.toFixed(2);
     r.querySelector('.vbar i').style.width=(!has||isNaN(s)?0:Math.min(100,s/2.5*100))+'%';
     r.querySelector('.u').textContent=!has?'この初期値にはありません':(e.low&&fl<120?(fl<=60?'FL060以下は評価しない':'低い高度なので弱めに評価'):e.unit(s));});
+  var wd=windAt(k,fl);setText('iwind',wd?pad(Math.round(wd.d/5)*5%360||360,3)+'°/'+Math.round(wd.s)+' kt':(M.wind?'データなし(地面より下)':'この初期値にはありません'));
   var ax=auxAt(k);
   if(ax&&M.aux){setText('icape',pad(Math.round(ax.cape),4).replace(/^0+(?=\d)/,function(m){return m.replace(/0/g,' ');})+' J/kg');
     setText('iel',ax.el>0?'FL'+pad(Math.round(ax.el/10)*10,3):'—');setText('ictop',ctopText(ax));
@@ -887,7 +940,7 @@ stage.addEventListener('click',function(ev){
 
 /* ===== 3D ===== */
 var FLS=[];for(var f0=FLMIN;f0<=FLMAX;f0+=10) FLS.push(f0);
-var TARGETS=[{k:'total',nm:'総合'},{k:'mw',nm:'山岳波・重力波'},{k:'ii',nm:'慣性不安定'},{k:'df',nm:'変形場'},{k:'ri',nm:'低リチャードソン数'},{k:'vws',nm:'VWS'},{k:'cv',nm:'対流'},{k:'mi',nm:'雲中の湿潤不安定'},{k:'mech',nm:'地表付近の乱れ'}];
+var TARGETS=[{k:'total',nm:'総合'},{k:'mw',nm:'山岳波・重力波'},{k:'ii',nm:'慣性不安定'},{k:'df',nm:'変形場'},{k:'ri',nm:'低リチャードソン数'},{k:'vws',nm:'VWS'},{k:'cv',nm:'対流'},{k:'mi',nm:'雲中の湿潤不安定'},{k:'rm',nm:'雲中のシアー'},{k:'mech',nm:'地表付近の乱れ'}];
 var volCache={key:'',vols:{}};
 ['target','target3'].forEach(function(id){TARGETS.forEach(function(t){var o=document.createElement('option');o.value=t.k;o.textContent=t.nm;$(id).appendChild(o);});
   $(id).addEventListener('change',function(){target=$(id).value;$('target').value=target;$('target3').value=target;saveUI();draw();});});
@@ -898,8 +951,8 @@ function buildVolume(tk){
   var N=M.nx*M.ny,nz=FLS.length,vol=new Float32Array(N*nz);
   for(var z=0;z<nz;z++){
     var fl=FLS[z],o=z*N;
-    if(tk==='total'){var F={};['mw','ii','df','ri','vws','cv','mi','mech'].forEach(function(k){F[k]=field(k,fl);});
-      for(var k2=0;k2<N;k2++) vol[o+k2]=totalCore(F.mw[k2],F.ii[k2],F.df[k2],F.ri[k2],F.vws[k2],F.cv[k2],F.mi[k2],fl,zfAt(k2),null,F.mech[k2]);}
+    if(tk==='total'){var F={};['mw','ii','df','ri','vws','cv','mi','rm','mech'].forEach(function(k){F[k]=field(k,fl);});
+      for(var k2=0;k2<N;k2++) vol[o+k2]=totalCore(F.mw[k2],F.ii[k2],F.df[k2],F.ri[k2],F.vws[k2],F.cv[k2],F.mi[k2],fl,zfAt(k2),null,F.mech[k2],F.rm[k2]);}
     else vol.set(field(tk,fl),o);
   }
   volCache.vols[tk]=vol;return vol;
@@ -1102,7 +1155,7 @@ function updateSec(){
   $('secempty').hidden=has;$('seccv').hidden=!has;$('secov').hidden=!has;
   if(!has){secGeom=null;return;}
   var cv2=$('seccv'),dpr=Math.min(window.devicePixelRatio||1,2),cw=cv2.clientWidth||800,ch=SECH;
-  var key=cur.run+'|'+cur.k+'|'+target+'|'+withCloud+'|'+cw+'|'+dark()+'|'+$('vwsl').checked+'|'+$('cloud').checked+'|'+JSON.stringify(sec.pts);
+  var key=cur.run+'|'+cur.k+'|'+target+'|'+withCloud+'|'+cw+'|'+dark()+'|'+$('vwsl').checked+'|'+$('cloud').checked+'|'+$('wind').checked+'|'+JSON.stringify(sec.pts);
   if(key===secKey){drawSecOverlay();return;} secKey=key;
   var vol=buildVolume(),path=samplePath(),n=path.n,nz=FLS.length,dk=dark(),bg=dk?[15,23,32]:[238,243,248];
   var flip=secFlip();   // 東から西へ向かう経路は、始点(0km)を右端にする
@@ -1129,6 +1182,16 @@ function updateSec(){
     ctx.save();ctx.beginPath();ctx.rect(L,T,pw,ph);ctx.clip();
     drawVwsLines(ctx,function(i2,j2){return vm[i2*nz+j2];},n,nz,function(i2,j2){return [XD(i2/(n-1)*path.total),T+(flMax-FLS[0]-j2*10)/(flMax-flMin)*ph];},1);
     ctx.restore();
+  }
+  if($('wind').checked&&M.wind){   // 矢羽(地図と同じく北が上の向き)。距離はおよそ等間隔、高さはFL040ごと
+    var wcol=dk?'rgba(240,244,248,.92)':'rgba(20,28,40,.88)',whalo=dk?'rgba(0,0,0,.55)':'rgba(255,255,255,.75)',bl=21,cols=Math.max(2,Math.floor(pw/74)),wit=[];
+    for(var c2=0;c2<cols;c2++){var dd=(c2+0.5)/cols*path.total,ll=pathAt(path,dd),kk=gridIndex(ll[1],ll[0]);
+      for(var f3=40;f3<=400;f3+=40){var wv=windAt(kk,f3);if(!wv) continue;var rr=wv.d*Math.PI/180;
+        wit.push([XD(dd),T+(flMax-f3)/(flMax-flMin)*ph,Math.sin(rr),-Math.cos(rr),wv.s]);}}
+    ctx.save();ctx.beginPath();ctx.rect(L,T,pw,ph);ctx.clip();ctx.lineCap='round';ctx.lineJoin='round';
+    [[whalo,3],[wcol,1.2]].forEach(function(st){ctx.strokeStyle=st[0];ctx.fillStyle=st[0];ctx.lineWidth=st[1];
+      wit.forEach(function(it){barb(ctx,it[0],it[1],it[2],it[3],it[4],bl);});});
+    ctx.restore();ctx.lineWidth=1;
   }
   var hasCt=$('cloud').checked&&auxPlane('ctop');
   if(hasCt) drawSecCloudTop(ctx,path,XD,L,T,pw,ph,flMin,flMax,dk);
