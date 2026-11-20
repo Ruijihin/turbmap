@@ -515,7 +515,7 @@ function barb(o,x,y,ux,uy,spd,len){
 /* 地図に矢羽を並べる(画面上でほぼ等間隔) */
 function drawWindBarbs(o,dpr,dk){
   if(!M||!M.wind) return;
-  var sp=58*dpr,len=25*dpr,col=dk?'rgba(240,244,248,.92)':'rgba(20,28,40,.88)',halo=dk?'rgba(0,0,0,.55)':'rgba(255,255,255,.75)';
+  var sp=29*dpr,len=16*dpr,col=dk?'rgba(240,244,248,.92)':'rgba(20,28,40,.88)',halo=dk?'rgba(0,0,0,.55)':'rgba(255,255,255,.75)';
   var items=[];
   for(var y=sp/2;y<P.H;y+=sp)for(var x=sp/2;x<P.W;x+=sp){
     var lon=P.b[0]+x/P.W*(P.b[1]-P.b[0]),lat=P.b[3]-y/P.H*(P.b[3]-P.b[2]),k=gridIndex(lat,lon),w=windAt(k,cur.fl);
