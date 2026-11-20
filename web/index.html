@@ -79,6 +79,11 @@ select{padding:6px 8px;border:1px solid var(--line);background:var(--surface);bo
 .mapbody{display:grid;grid-template-columns:auto 76px;justify-content:center;gap:0;padding:8px 6px 4px 10px}
 .stage{position:relative;background:var(--sea);touch-action:none}
 .stage canvas{position:absolute;inset:0;width:100%;height:100%}
+.stage.panning{cursor:grabbing}
+.zoombox{position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:4px;z-index:2}
+.zoombox button{width:34px;height:34px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--fg);font:600 18px/1 var(--font);cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.15);padding:0}
+.zoombox button:disabled{opacity:.4;cursor:default}
+.zoombox .zl{font:11px var(--mono);text-align:center;color:var(--muted);background:var(--surface);border-radius:4px;padding:1px 0;opacity:.9}
 .stage3{position:relative;background:var(--sea)}
 .loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);background:color-mix(in srgb,var(--surface) 55%,transparent);pointer-events:none;font-size:.95rem}
 .err{color:#c62828}
@@ -114,7 +119,7 @@ select{padding:6px 8px;border:1px solid var(--line);background:var(--surface);bo
 .mapbody.side .legend{grid-column:3;grid-row:1/3;border-top:0;border-left:1px solid var(--line);margin-left:12px;padding:0 0 0 12px;align-self:start;gap:10px}
 .mapbody.side .lrow{flex-direction:column;align-items:stretch;gap:5px}
 .mapbody.side #legend{display:grid;grid-template-columns:1fr 1fr;gap:2px 8px}
-.mapbody.side #legend .muted{grid-column:1/-1}
+.mapbody.side #legend .muted,.mapbody.side #legend .wide{grid-column:1/-1}
 .mapbody.side .chips{display:grid;grid-template-columns:1fr 1fr;gap:4px}
 .mapbody.side .only{padding:0 5px;font-size:.68rem}
 .mapbody.side .chip{padding:2px 4px 2px 6px;font-size:.78rem;overflow:hidden}
@@ -233,12 +238,18 @@ details.doc ol,details.doc ul{margin:6px 0 0;padding-left:1.4em;display:flex;fle
         <canvas id="ov" aria-hidden="true"></canvas>
         <canvas id="pv" aria-hidden="true"></canvas>
         <div class="loading" id="loading">データを読み込んでいます</div>
+        <div class="zoombox" id="zoombox">
+          <button type="button" id="zin" title="拡大(ホイール・2本指でも)" aria-label="拡大">＋</button>
+          <button type="button" id="zout" title="縮小" aria-label="縮小">−</button>
+          <button type="button" id="zreset" title="表示範囲の全体に戻す" aria-label="全体に戻す" style="font-size:14px">⤢</button>
+          <div class="zl" id="zlabel">×1</div>
+        </div>
       </div>
       <div class="stage3" id="stage3" hidden></div>
       <div class="flslider" id="flslider" tabindex="0" role="slider" aria-label="高度(フライトレベル)" aria-valuemin="20" aria-valuemax="410">
         <div class="track"></div><div id="flticks"></div><div class="thumb" id="flthumb">FL300</div>
       </div>
-      <div class="flcap"><span id="flhelp">↑↓キー・ドラッグで高度</span><span class="kind" id="flkind">—</span></div>
+      <div class="flcap"><span id="flhelp">↑↓キー・ドラッグで高度 · ホイール・2本指・＋−で拡大、ドラッグで移動</span><span class="kind" id="flkind">—</span></div>
     </div>
     <div class="bar3" id="bar3" hidden>
       <label>対象 <select id="target3" aria-label="3Dの対象"></select></label>
@@ -622,6 +633,29 @@ function fitMap(ar,sideW){
   return {w:Math.floor(w),h:Math.floor(h),spare:avail-w};
 }
 function applySize(s){[stage,$('stage3')].forEach(function(x){x.style.width=s.w+'px';x.style.height=s.h+'px';});$('flslider').style.height=s.h+'px';}
+/* 拡大・移動:表示範囲(全域・本州など)を基準に、倍率と中心を持つ。データの範囲の外へは出さない */
+var ZM={z:1,cx:null,cy:null};
+function zoomMax(){var b0=view().b;return Math.max(1,Math.min(8,(b0[1]-b0[0])/2.5));}
+function zoomBounds(){
+  var b0=view().b,D=VIEWS[0].b,w=(b0[1]-b0[0])/ZM.z,h=(b0[3]-b0[2])/ZM.z;
+  if(ZM.cx==null){ZM.cx=(b0[0]+b0[1])/2;ZM.cy=(b0[2]+b0[3])/2;}
+  ZM.cx=w>=D[1]-D[0]?(b0[0]+b0[1])/2:Math.max(D[0]+w/2,Math.min(D[1]-w/2,ZM.cx));
+  ZM.cy=h>=D[3]-D[2]?(b0[2]+b0[3])/2:Math.max(D[2]+h/2,Math.min(D[3]-h/2,ZM.cy));
+  return [ZM.cx-w/2,ZM.cx+w/2,ZM.cy-h/2,ZM.cy+h/2];
+}
+function resetZoom(){ZM={z:1,cx:null,cy:null};}
+function zoomUI(){var zm=zoomMax();$('zin').disabled=ZM.z>=zm-1e-6;$('zout').disabled=ZM.z<=1+1e-6;$('zreset').disabled=ZM.z<=1+1e-6;
+  $('zlabel').textContent='×'+(ZM.z<10?ZM.z.toFixed(1).replace(/\.0$/,''):Math.round(ZM.z));$('zoombox').hidden=cur.dim==='3d';}
+var blitReq=0;
+function requestBlit(){if(blitReq) return;blitReq=requestAnimationFrame(function(){blitReq=0;if(M&&D&&cur.dim!=='3d') blit();});}
+function applyZoom(){P.b=zoomBounds();zoomUI();requestBlit();}
+/* 画面上の位置(0〜1)を中心に f 倍する */
+function zoomAt(fx,fy,f){
+  var b=P.b,lon=b[0]+fx*(b[1]-b[0]),lat=b[3]-fy*(b[3]-b[2]),z=Math.max(1,Math.min(zoomMax(),ZM.z*f));
+  if(Math.abs(z-ZM.z)<1e-6) return;
+  var b0=view().b,w=(b0[1]-b0[0])/z,hh=(b0[3]-b0[2])/z;
+  ZM.z=z;ZM.cx=lon-(fx-0.5)*w;ZM.cy=lat+(fy-0.5)*hh;applyZoom();
+}
 function layout(){
   var b=view().b,mid=(b[2]+b[3])/2,ar=((b[1]-b[0])*Math.cos(mid*Math.PI/180))/(b[3]-b[2]);
   // 1回目は凡例を地図の下に置いて測る。地図の横に余裕があれば、凡例を右に移して測り直す(地図を縦に大きくできる)
@@ -629,7 +663,7 @@ function layout(){
   if(s.spare>SIDE_W+20){setSide(true);var s2=fitMap(ar,SIDE_W+12);applySize(s2);s2=fitMap(ar,SIDE_W+12);if(s2.h>=s.h){s=s2;applySize(s);}else{setSide(false);applySize(s);}}
   var w=s.w,h=s.h,dpr=Math.min(window.devicePixelRatio||1,2);
   [cv,ov,pv].forEach(function(c){c.width=Math.round(w*dpr);c.height=Math.round(h*dpr);});
-  P={W:cv.width,H:cv.height,b:b,dpr:dpr,cw:w,ch:h};
+  P={W:cv.width,H:cv.height,b:b,dpr:dpr,cw:w,ch:h};P.b=zoomBounds();zoomUI();
   buildFlTicks();
 }
 function X(lon){return (lon-P.b[0])/(P.b[1]-P.b[0])*P.W;}
@@ -704,7 +738,7 @@ function setScope(s){withCloud=s==='cloud';document.querySelectorAll('[data-s]')
 document.querySelectorAll('[data-m]').forEach(function(b){b.addEventListener('click',function(){setMode(b.dataset.m);});});
 document.querySelectorAll('[data-s]').forEach(function(b){b.addEventListener('click',function(){setScope(b.dataset.s);});});
 VIEWS.forEach(function(v){var o=document.createElement('option');o.value=v.k;o.textContent=v.nm;$('view').appendChild(o);});
-$('view').addEventListener('change',function(){cur.view=$('view').value;saveUI();layout();draw();});
+$('view').addEventListener('change',function(){cur.view=$('view').value;resetZoom();saveUI();layout();draw();});
 $('pirep').addEventListener('change',function(){drawOverlay();});
 $('cloud').addEventListener('change',function(){drawOverlay();saveUI();updateSec();});
 $('wind').addEventListener('change',function(){drawOverlay();saveUI();updateSec();renderInfo();});
@@ -717,7 +751,7 @@ function paintLegend(){
   if(cur.mode==='total') h=CAT.map(function(c,i){return '<span class="cat"><i style="background:'+rgb(S[i])+'"></i>'+c.nm+'('+c.v.toFixed(1)+')</span>';}).join(' ')+' <span class="muted" style="font-size:.75rem">総合は全要素を使用</span>';
   else h='<span class="cat">色の濃さ:弱(0.5)</span> <span class="ramp"></span> <span class="cat">強(1.6以上)</span> <span class="muted" style="font-size:.75rem">重なると色が混ざる</span>';
   if($('vwsl').checked){var sw=function(L){return '<svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="'+vwsColor()+'" stroke-width="'+L.w*1.2+'"'+(L.dash.length?' stroke-dasharray="2 3"':'')+'/></svg>';};
-    h+=' <span class="cat" style="gap:6px">VWS '+VWS_LV.map(function(L){return sw(L)+L.kt+'kt';}).join(' ')+'</span>';}
+    h+=' <span class="cat wide" style="gap:6px">VWS '+VWS_LV.map(function(L){return sw(L)+L.kt+'kt';}).join(' ')+'</span>';}
   $('legend').innerHTML=h;
   $('chips').classList.toggle('off',cur.mode==='total');
   EL.forEach(function(e){e.chip.style.setProperty('--c',rgb(ecol(e)));e.chip.setAttribute('aria-pressed',e.on?'true':'false');});
@@ -758,16 +792,20 @@ function draw2d(){
     px[k*4]=r;px[k*4+1]=g;px[k*4+2]=b;px[k*4+3]=255;
   }
   octx.putImageData(img,0,0);
+  blit();
+}
+/* 色の画像から表示範囲を切り出し、重ね描きをする(拡大・移動のときはここだけ) */
+function blit(){
   var sx=(P.b[0]-M.lon0)/M.dlon+0.5,ex=(P.b[1]-M.lon0)/M.dlon+0.5,sy=(P.b[3]-M.lat0)/M.dlat+0.5,ey=(P.b[2]-M.lat0)/M.dlat+0.5;
   var ctx=cv.getContext('2d');ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.clearRect(0,0,P.W,P.H);
   ctx.drawImage(off,sx,sy,ex-sx,ey-sy,0,0,P.W,P.H);
-  drawOverlay();
+  drawOverlay();drawProbe();
 }
 /* 雲の可能性の点。湿度のある高さ:氷相対湿度がしきい値以上で、推定雲頂より下。
    湿度の無い高さ(FL300より上):300hPaまで雲があり、モデルの上層雲量が50%以上の所を白抜きの点で */
 function drawCloudDots(o,dpr,dk){
   var rh=fieldsAt(cur.fl).rh,thr=(M.cloud_rhi||95)/100,ct=auxPlane('ctop'),up=auxPlane('cld_up'),fl=cur.fl;
-  var step=cur.view==='all'?3:2,col=dk?'rgba(230,235,240,.55)':'rgba(30,40,55,.45)',hollow=false;
+  var cell=Math.abs(X(M.lon0+M.dlon)-X(M.lon0))||1,step=Math.max(1,Math.round(10*dpr/cell)),col=dk?'rgba(230,235,240,.55)':'rgba(30,40,55,.45)',hollow=false;
   o.fillStyle=col;o.strokeStyle=col;o.lineWidth=0.9*dpr;
   for(var j=0;j<M.ny;j+=step)for(var i2=(j/step)%2;i2<M.nx;i2+=step){var k=j*M.nx+i2,r=rh[k],on;
     if(!isNaN(r)){on=r>=thr&&(!ct||ct[k]>=CTOP_UNK||fl<=ct[k]+5);hollow=false;}
@@ -781,7 +819,7 @@ function drawOverlay(){
   o.strokeStyle=css('--landline');o.lineWidth=0.9*dpr;
   COAST.forEach(function(p){o.beginPath();p.forEach(function(q,i){var x=X(q[0]),y=Y(q[1]);i?o.lineTo(x,y):o.moveTo(x,y);});o.stroke();});
   o.fillStyle=css('--muted');o.font=(10.5*dpr)+'px '+css('--font');o.strokeStyle=css('--line');o.lineWidth=0.6*dpr;o.setLineDash([3*dpr,4*dpr]);
-  var gs=(P.b[1]-P.b[0])>16?4:2;
+  var span=P.b[1]-P.b[0],gs=span>16?4:span>7?2:span>3?1:0.5;
   for(var lo=Math.ceil(P.b[0]/gs)*gs;lo<=P.b[1];lo+=gs){o.beginPath();o.moveTo(X(lo),0);o.lineTo(X(lo),P.H);o.stroke();o.fillText(lo+'°E',X(lo)+3*dpr,P.H-5*dpr);}
   for(var la=Math.ceil(P.b[2]/gs)*gs;la<=P.b[3];la+=gs){o.beginPath();o.moveTo(0,Y(la));o.lineTo(P.W,Y(la));o.stroke();o.fillText(la+'°N',4*dpr,Y(la)-4*dpr);}
   o.setLineDash([]);
@@ -924,16 +962,52 @@ function renderInfo(){
 function setProbe(p){Object.assign(probe,p);probe.active=true;renderInfo();drawProbe();drawSecOverlay();}
 function unpin(){probe.pinned=false;renderInfo();drawProbe();drawSecOverlay();}
 $('iunpin').addEventListener('click',unpin);
+$('zin').addEventListener('click',function(){zoomAt(0.5,0.5,2);});
+$('zout').addEventListener('click',function(){zoomAt(0.5,0.5,0.5);});
+$('zreset').addEventListener('click',function(){resetZoom();applyZoom();});
 
 /* 地図の操作 */
+// 拡大・移動。少しでも動かしたら移動とみなし、そのあとの click(地点の固定・断面の点)は無視する
+var ptrs={},drag=null,pinch=null,suppressClick=false;
+function stageFrac(ev){var r=stage.getBoundingClientRect();return [(ev.clientX-r.left)/r.width,(ev.clientY-r.top)/r.height,r];}
+stage.addEventListener('wheel',function(ev){
+  if(!M||cur.dim==='3d') return;ev.preventDefault();
+  var f=stageFrac(ev),d=ev.deltaMode===1?ev.deltaY*33:ev.deltaY;zoomAt(f[0],f[1],Math.exp(-d*0.0018));
+},{passive:false});
+stage.addEventListener('pointerdown',function(ev){
+  if(!M||cur.dim==='3d'||ev.target.closest('.zoombox')) return;
+  if(ev.pointerType==='mouse'&&ev.button!==0) return;
+  ptrs[ev.pointerId]={x:ev.clientX,y:ev.clientY};
+  try{stage.setPointerCapture(ev.pointerId);}catch(e){}
+  var ids=Object.keys(ptrs);
+  if(ids.length===1){drag={x:ev.clientX,y:ev.clientY,cx:ZM.cx,cy:ZM.cy,moved:false};pinch=null;}
+  else if(ids.length===2){var a=ptrs[ids[0]],b=ptrs[ids[1]],r=stage.getBoundingClientRect();
+    pinch={d:Math.hypot(a.x-b.x,a.y-b.y)||1,z:ZM.z,fx:((a.x+b.x)/2-r.left)/r.width,fy:((a.y+b.y)/2-r.top)/r.height};drag=null;suppressClick=true;}
+});
+function endPtr(ev){
+  delete ptrs[ev.pointerId];
+  if(drag&&drag.moved){suppressClick=true;setTimeout(function(){suppressClick=false;},400);}
+  if(!Object.keys(ptrs).length){drag=null;pinch=null;stage.classList.remove('panning');}
+}
+['pointerup','pointercancel'].forEach(function(t){stage.addEventListener(t,endPtr);});
 stage.addEventListener('pointermove',function(ev){
-  if(!M||ev.pointerType==='touch') return;var ll=evLonLat(ev);hoverLL=ll;
+  if(!M||cur.dim==='3d') return;
+  if(ptrs[ev.pointerId]){ptrs[ev.pointerId]={x:ev.clientX,y:ev.clientY};
+    if(pinch){var ids=Object.keys(ptrs);if(ids.length>=2){var a=ptrs[ids[0]],b=ptrs[ids[1]],dd=Math.hypot(a.x-b.x,a.y-b.y);
+      zoomAt(pinch.fx,pinch.fy,pinch.z*dd/pinch.d/ZM.z);}return;}
+    if(drag){var dx=ev.clientX-drag.x,dy=ev.clientY-drag.y;
+      if(!drag.moved&&Math.hypot(dx,dy)>5&&ZM.z>1){drag.moved=true;stage.classList.add('panning');}
+      if(drag.moved){var r=stage.getBoundingClientRect();ZM.cx=drag.cx-dx/r.width*(P.b[1]-P.b[0]);ZM.cy=drag.cy+dy/r.height*(P.b[3]-P.b[2]);applyZoom();return;}}
+  }
+  if(ev.pointerType==='touch') return;var ll=evLonLat(ev);hoverLL=ll;
   if(sec.on){drawProbe();return;}
   if(!probe.pinned) setProbe({lat:ll[1],lon:ll[0],fl:null,dist:null});
 });
 stage.addEventListener('pointerleave',function(){hoverLL=null;if(sec.on) drawProbe();});
 stage.addEventListener('click',function(ev){
-  if(!M) return;var ll=evLonLat(ev);
+  if(!M||ev.target.closest('.zoombox')) return;
+  if(suppressClick){suppressClick=false;return;}
+  var ll=evLonLat(ev);
   if(sec.on){if(sec.pts.length<8){sec.pts.push(ll);secChanged();}return;}
   if(probe.pinned){var dx=X(probe.lon)-X(ll[0]),dy=Y(probe.lat)-Y(ll[1]);if(Math.sqrt(dx*dx+dy*dy)<14*P.dpr){unpin();return;}}
   setProbe({lat:ll[1],lon:ll[0],fl:null,dist:null,pinned:true});
@@ -992,7 +1066,7 @@ function groundCanvas(){
 function setDim(d){
   cur.dim=d;document.querySelectorAll('[data-d]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.d===d?'true':'false');});
   stage.hidden=d==='3d';$('stage3').hidden=d!=='3d';$('bar3').hidden=d!=='3d';$('view').disabled=d==='3d';
-  fls.style.visibility=d==='3d'?'hidden':'visible';$('flhelp').style.visibility=d==='3d'?'hidden':'visible';
+  fls.style.visibility=d==='3d'?'hidden':'visible';$('flhelp').style.visibility=d==='3d'?'hidden':'visible';zoomUI();
   if(d==='3d'){
     if(sec.on){sec.on=false;secUI();}
     var sv=cur.view;cur.view='all';layout();cur.view=sv;
@@ -1300,6 +1374,9 @@ document.addEventListener('keydown',function(ev){
   else if(ev.key==='ArrowUp'){setFL(cur.fl+10);ev.preventDefault();}
   else if(ev.key==='ArrowDown'){setFL(cur.fl-10);ev.preventDefault();}
   else if(ev.key==='Escape'){if(sec.on){sec.on=false;secUI();drawProbe();}else if(probe.pinned) unpin();}
+  else if(cur.dim!=='3d'&&(ev.key==='+'||ev.key===';'||ev.key==='=')){zoomAt(0.5,0.5,1.5);ev.preventDefault();}
+  else if(cur.dim!=='3d'&&ev.key==='-'){zoomAt(0.5,0.5,1/1.5);ev.preventDefault();}
+  else if(cur.dim!=='3d'&&ev.key==='0'){resetZoom();applyZoom();}
 });
 var rsT=null;
 // iPadのSafariは、スクロールでアドレスバーが出入りして画面の高さが少し変わる。そのたびに地図の大きさを変えないよう、
